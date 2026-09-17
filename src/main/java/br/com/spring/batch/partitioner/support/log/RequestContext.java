@@ -11,17 +11,16 @@ public final class RequestContext {
 
     public static final String REQUEST_ID = "request_id";
     private static final String NO_REQUEST_ID = "-";
-    private static final int SHORT_ID_LENGTH = 8;
 
     private RequestContext() {
     }
 
     public static String newRequestId(String prefix) {
-        return prefix + "-" + shortId(UUID.randomUUID().toString());
+        return prefix + "-" + UUID.randomUUID();
     }
 
     public static String childRequestId(String childId) {
-        return currentRequestId() + "/" + shortId(childId);
+        return currentRequestId() + "/" + childId;
     }
 
     public static String currentRequestId() {
@@ -59,10 +58,6 @@ public final class RequestContext {
                 MDC.setContextMap(previous);
             }
         };
-    }
-
-    private static String shortId(String id) {
-        return id.substring(0, Math.min(SHORT_ID_LENGTH, id.length()));
     }
 
     private static void restore(String previous) {

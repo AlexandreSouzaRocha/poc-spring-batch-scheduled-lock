@@ -72,6 +72,7 @@ Tipos: `ABERTO`, `FECHADO`, `SALDO`, `ULTIMA`. **Cada partição recebe uma cóp
 | `app.shedlock.fields.*` | `APP_SHEDLOCK_FIELD_*` | `_id`, `lock_until`, `locked_at`, `locked_by` | Nomes dos campos do lock |
 | `app.blob.upload-block-size-mb` | `APP_BLOB_UPLOAD_BLOCK_SIZE_MB` | `8` | Tamanho do bloco de upload (memória por partição) |
 | `app.kafka.topic` | `APP_KAFKA_TOPIC` | `movimentos-particionados` | Tópico de saída |
+| — | `OTEL_ENABLED` | `true` | Liga o agente do OpenTelemetry (gera `trace_id`/`span_id` nos logs) |
 
 O MongoDB roda com `transactionLifetimeLimitSeconds=60`, igual a produção. Nenhum I/O de blob ou
 Kafka acontece dentro de transação do Mongo (ver [ARCHITECTURE.md](docs/ARCHITECTURE.md#transações-do-mongodb)).

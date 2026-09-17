@@ -48,7 +48,7 @@ public final class LogEntry {
         }
         StringBuilder line = new StringBuilder(256);
         fields.forEach((name, value) -> append(line, name, LogValues.format(value)));
-        append(line, MESSAGE, LogValues.quote("[" + RequestContext.currentRequestId() + "] " + message));
+        append(line, MESSAGE, LogValues.quote(message));
         appendJson(line, DATA, data);
         appendJson(line, ERROR, error);
         target.write(line.toString());

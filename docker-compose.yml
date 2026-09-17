@@ -11,6 +11,7 @@ x-app-env: &app-env
   APP_PARTITION_COUNT: ${PARTITION_COUNT:-10}
   APP_PARTITION_MAX_ATTEMPTS: ${PARTITION_MAX_ATTEMPTS:-3}
   APP_SCHEDULER_INTERVAL: ${SCHEDULER_INTERVAL:-30s}
+  OTEL_JAVAAGENT_ENABLED: ${OTEL_ENABLED:-true}
 
 x-app-depends: &app-depends
   kafka:
@@ -159,6 +160,7 @@ services:
     environment:
       <<: *app-env
       SPRING_PROFILES_ACTIVE: generator
+      OTEL_RESOURCE_ATTRIBUTES: service.instance.id=generator
     healthcheck: *app-healthcheck
     deploy:
       resources:
@@ -176,12 +178,13 @@ services:
     environment:
       <<: *app-env
       SPRING_PROFILES_ACTIVE: partitioner
+      OTEL_RESOURCE_ATTRIBUTES: service.instance.id=partitioner-1
     healthcheck: *app-healthcheck
     deploy:
       resources:
         limits:
           cpus: "${PARTITIONER_CPUS:-2}"
-          memory: ${PARTITIONER_MEMORY:-1g}
+          memory: ${PARTITIONER_MEMORY:-2g}
     depends_on:
       <<: *app-depends
       generator:
@@ -196,12 +199,13 @@ services:
     environment:
       <<: *app-env
       SPRING_PROFILES_ACTIVE: partitioner
+      OTEL_RESOURCE_ATTRIBUTES: service.instance.id=partitioner-2
     healthcheck: *app-healthcheck
     deploy:
       resources:
         limits:
           cpus: "${PARTITIONER_CPUS:-2}"
-          memory: ${PARTITIONER_MEMORY:-1g}
+          memory: ${PARTITIONER_MEMORY:-2g}
     depends_on:
       <<: *app-depends
       generator:

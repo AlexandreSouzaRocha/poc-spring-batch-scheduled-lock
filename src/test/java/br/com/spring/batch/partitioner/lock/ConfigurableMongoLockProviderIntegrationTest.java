@@ -20,8 +20,10 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.mongodb.MongoDBContainer;
 
+import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.SimpleMongoClientDatabaseFactory;
+import org.springframework.data.mongodb.core.index.Index;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -112,8 +114,19 @@ class ConfigurableMongoLockProviderIntegrationTest {
     }
 
     private ConfigurableMongoLockProvider provider(FieldNames fields, String owner) {
+        createUniqueNameIndex(fields);
         MongoLockStore store = new MongoLockStore(mongoTemplate, new ShedLockProperties(COLLECTION, owner, fields));
         return new ConfigurableMongoLockProvider(store, owner);
+    }
+
+    private void createUniqueNameIndex(FieldNames fields) {
+        if (fields.nameIsMongoId()) {
+            return;
+        }
+        mongoTemplate.indexOps(COLLECTION).createIndex(new Index()
+                .on(fields.name(), Sort.Direction.ASC)
+                .unique()
+                .named(fields.name() + "_unique"));
     }
 
     private static LockConfiguration configuration(String name, Duration lockAtMostFor, Duration lockAtLeastFor) {
