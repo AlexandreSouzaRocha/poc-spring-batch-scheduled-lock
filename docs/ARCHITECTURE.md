@@ -183,11 +183,11 @@ depois que eles terminam (`service_completed_successfully`). Os scripts são ide
   "_id": "66851c48-fa5b-3cd8-9ace-de0a9de5d953",
   "role": "ORIGINAL",
   "parent_file_id": null,
-  "file_name": "MOV_ABERTO_20260916_1789601662802_01.dat",
+  "file_name": "MOV_ABERTO_20260916_1789601662802_01.txt",
   "status": "COMPLETED",
   "blob": {
-    "source_path": "entrada/MOV_ABERTO_20260916_1789601662802_01.dat",
-    "current_path": "processados/2026-09-16/66851c48-.../MOV_ABERTO_20260916_1789601662802_01.dat",
+    "source_path": "entrada/MOV_ABERTO_20260916_1789601662802_01.txt",
+    "current_path": "processados/2026-09-16/66851c48-.../MOV_ABERTO_20260916_1789601662802_01.txt",
     "etag": "0x24CEF87183CB480",
     "size_bytes": 755000019
   },
@@ -209,10 +209,10 @@ Uma partição tem `role=PARTITION`, `parent_file_id` apontando para o original,
 ## Pastas no blob
 
 ```
-entrada/<arquivo>.dat                                   recebido, aguardando particionamento
-processados/<data>/<fileId>/<arquivo>.dat               original já particionado
-aberto|fechado|saldo|ultima/<data>/<fileId>/<arquivo>_part_0001.dat
-erros/<fileId>/<arquivo>.dat                            inválido ou sem mais tentativas
+entrada/<arquivo>.txt                                   recebido, aguardando particionamento
+processados/<data>/<fileId>/<arquivo>.txt               original já particionado
+aberto|fechado|saldo|ultima/<data>/<fileId>/<arquivo>_part_0001.txt
+erros/<fileId>/<arquivo>.txt                            inválido ou sem mais tentativas
 ```
 
 O `fileId` no caminho das partições permite apagar todas as partições de um arquivo só
@@ -224,7 +224,7 @@ Tópico `movimentos-particionados`, com 10 partições. A key é o nome do arqui
 particionado, o que distribui as mensagens entre as partições e permite consumo paralelo.
 
 ```json
-{ "movement_type": "ABERTO", "blob_path": "aberto/2026-09-16/<fileId>/MOV_..._part_0001.dat", "movement_date": "2026-09-16" }
+{ "movement_type": "ABERTO", "blob_path": "aberto/2026-09-16/<fileId>/MOV_..._part_0001.txt", "movement_date": "2026-09-16" }
 ```
 
 ## Estrutura do código

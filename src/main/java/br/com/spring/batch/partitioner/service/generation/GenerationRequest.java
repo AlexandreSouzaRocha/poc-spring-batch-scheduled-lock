@@ -7,6 +7,7 @@ import java.util.stream.IntStream;
 
 import br.com.spring.batch.partitioner.model.enums.MovementType;
 import br.com.spring.batch.partitioner.model.layout.FileHeader;
+import br.com.spring.batch.partitioner.storage.BlobPaths;
 
 public record GenerationRequest(long lines, MovementType movementType, LocalDate movementDate, int files,
                                 boolean invalidHeader) {
@@ -27,7 +28,7 @@ public record GenerationRequest(long lines, MovementType movementType, LocalDate
     public List<String> fileNames(long timestamp) {
         return IntStream.rangeClosed(1, files)
                 .mapToObj(sequence -> "MOV_" + movementType.name() + "_" + movementDate.format(NAME_DATE) + "_"
-                        + timestamp + "_" + String.format("%02d", sequence) + ".dat")
+                        + timestamp + "_" + String.format("%02d", sequence) + BlobPaths.FILE_EXTENSION)
                 .toList();
     }
 }

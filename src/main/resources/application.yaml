@@ -10,7 +10,7 @@ spring:
       enabled: true
 
   mongodb:
-    uri: ${SPRING_MONGODB_URI:mongodb://localhost:27017/partitioner_batch?directConnection=true}
+    uri: ${SPRING_MONGODB_URI:mongodb://localhost:27017/partitioner_batch?directConnection=true&retryWrites=true}
     database: ${SPRING_MONGODB_DATABASE:partitioner_batch}
   data:
     mongodb:

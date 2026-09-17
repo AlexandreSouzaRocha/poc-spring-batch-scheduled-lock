@@ -13,7 +13,7 @@ regra customizada.
 Exemplo:
 
 ```
-2026-09-17T21:58:54.272Z level=INFO logger=b.c.s.b.p.b.t.PartitionWriterTasklet thread=virtual-91 request_id=cycle-067ea15e/d663e6c7 trace_id=27fc638f600ea74ed2824f37ba6eb757 span_id=96a50d6967a3658d context=partition-job operation=partition.upload fileId=d663e6c7 partitionIndex=4 lines=20000 bytes=3020019 durationMs=62 msg="partição enviada ao blob" data={"target":"aberto/2026-09-17/d663e6c7.../MOV_..._part_0004.dat","byteRange":{"start":9060019,"end":12080019}}
+2026-09-17T21:58:54.272Z level=INFO logger=b.c.s.b.p.b.t.PartitionWriterTasklet thread=virtual-91 request_id=cycle-067ea15e/d663e6c7 trace_id=27fc638f600ea74ed2824f37ba6eb757 span_id=96a50d6967a3658d context=partition-job operation=partition.upload fileId=d663e6c7 partitionIndex=4 lines=20000 bytes=3020019 durationMs=62 msg="partição enviada ao blob" data={"target":"aberto/2026-09-17/d663e6c7.../MOV_..._part_0004.txt","byteRange":{"start":9060019,"end":12080019}}
 ```
 
 | Campo | Exemplo | Significado |
@@ -72,7 +72,7 @@ O `partitionWorkerStep:partitionNNNN` mostra o tempo de cada partição.
 ### JOB_METRICS: uma linha por execução do job
 
 ```
-2026-09-17T00:41:30.417Z level=INFO logger=b.c.s.b.p.b.l.JobMetricsListener thread=scheduling-1 context=metrics operation=job.metrics job=filePartitionJob fileId=d303b501-... jobExecutionId=1 status=COMPLETED attempt=1 durationMs=3517 lines=5000000 bytes=755000019 partitions=10 linesPerSec=1421666 mbPerSec=204.73 msg="[cycle-1e646ce7/d303b501] JOB_METRICS" data={"fileName":"MOV_ABERTO_...dat","failures":[]}
+2026-09-17T00:41:30.417Z level=INFO logger=b.c.s.b.p.b.l.JobMetricsListener thread=scheduling-1 context=metrics operation=job.metrics job=filePartitionJob fileId=d303b501-... jobExecutionId=1 status=COMPLETED attempt=1 durationMs=3517 lines=5000000 bytes=755000019 partitions=10 linesPerSec=1421666 mbPerSec=204.73 msg="[cycle-1e646ce7/d303b501] JOB_METRICS" data={"fileName":"MOV_ABERTO_...txt","failures":[]}
 ```
 
 ### Comandos

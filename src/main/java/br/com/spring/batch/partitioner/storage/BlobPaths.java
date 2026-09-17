@@ -8,8 +8,10 @@ import org.springframework.stereotype.Component;
 @Component
 public class BlobPaths {
 
+    public static final String FILE_EXTENSION = ".txt";
+
     private static final String SEPARATOR = "/";
-    private static final String PARTITION_SUFFIX = "_part_%04d.dat";
+    private static final String PARTITION_SUFFIX = "_part_%04d" + FILE_EXTENSION;
 
     private final FolderSettings folders;
 

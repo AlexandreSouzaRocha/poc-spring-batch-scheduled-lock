@@ -19,17 +19,17 @@ class BlobPathsTest {
     void buildsFolderLayoutForEveryDestination() {
         ReceivedFileDocument original = inspectedOriginal();
 
-        assertThat(paths.inboxPath("MOV.dat")).isEqualTo("entrada/MOV.dat");
+        assertThat(paths.inboxPath("MOV.txt")).isEqualTo("entrada/MOV.txt");
         assertThat(paths.partitionPrefix(original)).isEqualTo("ultima/2026-09-16/file-1/");
-        assertThat(paths.partitionPath(original, 7)).isEqualTo("ultima/2026-09-16/file-1/MOV_part_0007.dat");
-        assertThat(paths.processedPath(original)).isEqualTo("processados/2026-09-16/file-1/MOV.dat");
-        assertThat(paths.errorPath(original)).isEqualTo("erros/file-1/MOV.dat");
-        assertThat(BlobPaths.fileNameOf("a/b/c.dat")).isEqualTo("c.dat");
+        assertThat(paths.partitionPath(original, 7)).isEqualTo("ultima/2026-09-16/file-1/MOV_part_0007.txt");
+        assertThat(paths.processedPath(original)).isEqualTo("processados/2026-09-16/file-1/MOV.txt");
+        assertThat(paths.errorPath(original)).isEqualTo("erros/file-1/MOV.txt");
+        assertThat(BlobPaths.fileNameOf("a/b/c.txt")).isEqualTo("c.txt");
     }
 
     private static ReceivedFileDocument inspectedOriginal() {
-        ReceivedFileDocument received = ReceivedFileDocument.original("file-1", "MOV.dat",
-                BlobLocation.received("entrada/MOV.dat", "etag", 100), Instant.now());
+        ReceivedFileDocument received = ReceivedFileDocument.original("file-1", "MOV.txt",
+                BlobLocation.received("entrada/MOV.txt", "etag", 100), Instant.now());
         return new ReceivedFileDocument(received.id(), received.role(), null, received.fileName(), received.status(),
                 received.blob(), new MovementInfo("H2026-09-16ULTIMA ", MovementType.ULTIMA, "2026-09-16"), null,
                 received.execution(), received.audit());
