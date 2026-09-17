@@ -1,0 +1,99 @@
+spring:
+  application:
+    name: partitioner
+
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:partitioner,generator}
+
+  threads:
+    virtual:
+      enabled: true
+
+  mongodb:
+    uri: ${SPRING_MONGODB_URI:mongodb://localhost:27017/partitioner_batch?directConnection=true}
+    database: ${SPRING_MONGODB_DATABASE:partitioner_batch}
+  data:
+    mongodb:
+      auto-index-creation: false
+
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      properties:
+        enable.idempotence: true
+        linger.ms: 5
+        delivery.timeout.ms: 60000
+
+server:
+  port: ${SERVER_PORT:8081}
+
+app:
+  blob:
+    endpoint: ${APP_BLOB_ENDPOINT:http://localhost:10000/devstoreaccount1}
+    account-name: ${APP_BLOB_ACCOUNT_NAME:devstoreaccount1}
+    account-key: ${APP_BLOB_ACCOUNT_KEY:Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==}
+    container: ${APP_BLOB_CONTAINER:movimentos}
+    upload-block-size-mb: ${APP_BLOB_UPLOAD_BLOCK_SIZE_MB:8}
+    read-block-size-mb: ${APP_BLOB_READ_BLOCK_SIZE_MB:8}
+    copy-buffer-kb: ${APP_BLOB_COPY_BUFFER_KB:256}
+
+  folders:
+    inbox: ${APP_FOLDER_INBOX:entrada}
+    processed: ${APP_FOLDER_PROCESSED:processados}
+    error: ${APP_FOLDER_ERROR:erros}
+
+  partition:
+    count: ${APP_PARTITION_COUNT:10}
+    max-attempts: ${APP_PARTITION_MAX_ATTEMPTS:3}
+    max-concurrent-files: ${APP_PARTITION_MAX_CONCURRENT_FILES:1}
+    files-per-cycle: ${APP_PARTITION_FILES_PER_CYCLE:20}
+
+  kafka:
+    topic: ${APP_KAFKA_TOPIC:movimentos-particionados}
+    topic-partitions: ${APP_KAFKA_TOPIC_PARTITIONS:10}
+    send-timeout-seconds: ${APP_KAFKA_SEND_TIMEOUT_SECONDS:30}
+
+  scheduler:
+    blob-polling:
+      lock-name: blob-polling
+      initial-delay: ${APP_POLLING_INITIAL_DELAY:10s}
+      interval: ${APP_POLLING_INTERVAL:30s}
+      lock-at-most-for: ${APP_POLLING_LOCK_AT_MOST_FOR:60s}
+      lock-at-least-for: ${APP_POLLING_LOCK_AT_LEAST_FOR:20s}
+    partitioning:
+      lock-name: file-partitioning
+      initial-delay: ${APP_PARTITIONING_INITIAL_DELAY:15s}
+      interval: ${APP_PARTITIONING_INTERVAL:30s}
+      lock-at-most-for: ${APP_PARTITIONING_LOCK_AT_MOST_FOR:60s}
+      lock-at-least-for: ${APP_PARTITIONING_LOCK_AT_LEAST_FOR:20s}
+
+  shedlock:
+    collection: ${APP_SHEDLOCK_COLLECTION:scheduler_locks}
+    locked-by: ${HOSTNAME:local-instance}
+    default-lock-at-most-for: 60s
+    fields:
+      name: ${APP_SHEDLOCK_FIELD_NAME:_id}
+      lock-until: ${APP_SHEDLOCK_FIELD_LOCK_UNTIL:lock_until}
+      locked-at: ${APP_SHEDLOCK_FIELD_LOCKED_AT:locked_at}
+      locked-by: ${APP_SHEDLOCK_FIELD_LOCKED_BY:locked_by}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  exception-conversion-word: "%wEx{short}"
+  level:
+    root: INFO
+    org.springframework.batch: WARN
+    org.apache.kafka: WARN
+    com.azure: WARN
+    br.com.spring.batch.partitioner: INFO

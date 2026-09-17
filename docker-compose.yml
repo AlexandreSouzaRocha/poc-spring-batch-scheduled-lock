@@ -1,0 +1,176 @@
+name: poc-partitioner
+
+x-app-env: &app-env
+  SPRING_MONGODB_URI: mongodb://mongo:27017/partitioner_batch?directConnection=true
+  SPRING_MONGODB_DATABASE: partitioner_batch
+  SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+  APP_BLOB_ENDPOINT: http://azurite:10000/devstoreaccount1
+  APP_BLOB_ACCOUNT_NAME: devstoreaccount1
+  APP_BLOB_ACCOUNT_KEY: "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw=="
+  APP_BLOB_CONTAINER: movimentos
+  APP_PARTITION_COUNT: ${PARTITION_COUNT:-10}
+  APP_PARTITION_MAX_ATTEMPTS: ${PARTITION_MAX_ATTEMPTS:-3}
+  APP_POLLING_INTERVAL: ${POLLING_INTERVAL:-30s}
+  APP_PARTITIONING_INTERVAL: ${PARTITIONING_INTERVAL:-30s}
+
+x-app-depends: &app-depends
+  kafka:
+    condition: service_healthy
+  mongo:
+    condition: service_healthy
+  mongo-init:
+    condition: service_completed_successfully
+  azurite:
+    condition: service_healthy
+
+x-app-healthcheck: &app-healthcheck
+  test: ["CMD-SHELL", "curl -fsS http://localhost:8081/actuator/health | grep -q UP || exit 1"]
+  interval: 5s
+  timeout: 5s
+  retries: 30
+  start_period: 20s
+
+services:
+  kafka:
+    image: confluentinc/cp-kafka:7.8.0
+    container_name: psl-kafka
+    hostname: kafka
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:29092,CONTROLLER://0.0.0.0:29093,HOST://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT,HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      CLUSTER_ID: 7M2p4nShT-eMCtK--X86sw
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092 || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: psl-kafka-ui
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      DYNAMIC_CONFIG_ENABLED: "true"
+    depends_on:
+      kafka:
+        condition: service_healthy
+
+  mongo:
+    image: mongo:7
+    container_name: psl-mongo
+    command: ["--replSet", "rs0", "--bind_ip_all", "--setParameter", "transactionLifetimeLimitSeconds=300"]
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  mongo-init:
+    image: mongo:7
+    container_name: psl-mongo-init
+    depends_on:
+      mongo:
+        condition: service_healthy
+    environment:
+      MONGO_DATABASE: partitioner_batch
+      BATCH_RETENTION_DAYS: ${BATCH_RETENTION_DAYS:-7}
+    volumes:
+      - ./docker:/init:ro
+    entrypoint: ["bash", "/init/mongo-init.sh"]
+    restart: "no"
+
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite:latest
+    container_name: psl-azurite
+    command: ["azurite-blob", "--blobHost", "0.0.0.0", "--blobPort", "10000", "--skipApiVersionCheck", "--disableProductStyleUrl", "--location", "/data"]
+    ports:
+      - "10000:10000"
+    volumes:
+      - azurite-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('net').connect(10000,'127.0.0.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))\""]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  generator:
+    build:
+      context: .
+    image: poc-spring-batch-partitioner:latest
+    container_name: psl-generator
+    hostname: generator
+    ports:
+      - "8090:8081"
+    environment:
+      <<: *app-env
+      SPRING_PROFILES_ACTIVE: generator
+    healthcheck: *app-healthcheck
+    deploy:
+      resources:
+        limits:
+          cpus: "${GENERATOR_CPUS:-2}"
+          memory: 1g
+    depends_on: *app-depends
+
+  partitioner-1:
+    image: poc-spring-batch-partitioner:latest
+    container_name: psl-partitioner-1
+    hostname: partitioner-1
+    ports:
+      - "8081:8081"
+    environment:
+      <<: *app-env
+      SPRING_PROFILES_ACTIVE: partitioner
+    healthcheck: *app-healthcheck
+    deploy:
+      resources:
+        limits:
+          cpus: "${PARTITIONER_CPUS:-2}"
+          memory: ${PARTITIONER_MEMORY:-1g}
+    depends_on:
+      <<: *app-depends
+      generator:
+        condition: service_started
+
+  partitioner-2:
+    image: poc-spring-batch-partitioner:latest
+    container_name: psl-partitioner-2
+    hostname: partitioner-2
+    ports:
+      - "8082:8081"
+    environment:
+      <<: *app-env
+      SPRING_PROFILES_ACTIVE: partitioner
+    healthcheck: *app-healthcheck
+    deploy:
+      resources:
+        limits:
+          cpus: "${PARTITIONER_CPUS:-2}"
+          memory: ${PARTITIONER_MEMORY:-1g}
+    depends_on:
+      <<: *app-depends
+      generator:
+        condition: service_started
+
+volumes:
+  azurite-data:
+  mongo-data:
