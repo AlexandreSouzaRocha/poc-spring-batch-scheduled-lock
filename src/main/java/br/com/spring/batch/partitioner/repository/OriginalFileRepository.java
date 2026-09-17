@@ -13,10 +13,8 @@ import br.com.spring.batch.partitioner.model.document.ReceivedFileDocument;
 import br.com.spring.batch.partitioner.model.document.ReceivedFileFields;
 import br.com.spring.batch.partitioner.model.enums.FileRole;
 import br.com.spring.batch.partitioner.model.enums.FileStatus;
-import jakarta.annotation.PostConstruct;
 
 import org.springframework.data.domain.Sort;
-import org.springframework.data.mongodb.core.index.Index;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Repository;
@@ -37,15 +35,6 @@ public class OriginalFileRepository {
 
     public OriginalFileRepository(ReceivedFileCollection collection) {
         this.collection = collection;
-    }
-
-    @PostConstruct
-    void createIndexes() {
-        collection.createIndex(new Index()
-                .on(ReceivedFileFields.ROLE, Sort.Direction.ASC)
-                .on(ReceivedFileFields.STATUS, Sort.Direction.ASC)
-                .on(audit(ReceivedFileFields.CREATED_AT), Sort.Direction.ASC)
-                .named("role_status_created_at"));
     }
 
     public boolean register(ReceivedFileDocument original) {

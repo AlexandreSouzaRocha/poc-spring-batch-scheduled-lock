@@ -6,11 +6,9 @@ import java.util.List;
 import br.com.spring.batch.partitioner.model.document.ReceivedFileDocument;
 import br.com.spring.batch.partitioner.model.document.ReceivedFileFields;
 import br.com.spring.batch.partitioner.model.enums.FileStatus;
-import jakarta.annotation.PostConstruct;
 
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.MongoTransactionManager;
-import org.springframework.data.mongodb.core.index.Index;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Repository;
@@ -32,14 +30,6 @@ public class PartitionFileRepository {
     public PartitionFileRepository(ReceivedFileCollection collection, MongoTransactionManager transactionManager) {
         this.collection = collection;
         this.mongoTransaction = new TransactionTemplate(transactionManager);
-    }
-
-    @PostConstruct
-    void createIndexes() {
-        collection.createIndex(new Index()
-                .on(ReceivedFileFields.PARENT_FILE_ID, Sort.Direction.ASC)
-                .on(PARTITION_INDEX, Sort.Direction.ASC)
-                .named("parent_file_id_partition_index"));
     }
 
     public void replaceAll(String parentFileId, List<ReceivedFileDocument> partitions) {

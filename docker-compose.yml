@@ -10,18 +10,21 @@ x-app-env: &app-env
   APP_BLOB_CONTAINER: movimentos
   APP_PARTITION_COUNT: ${PARTITION_COUNT:-10}
   APP_PARTITION_MAX_ATTEMPTS: ${PARTITION_MAX_ATTEMPTS:-3}
-  APP_POLLING_INTERVAL: ${POLLING_INTERVAL:-30s}
-  APP_PARTITIONING_INTERVAL: ${PARTITIONING_INTERVAL:-30s}
+  APP_SCHEDULER_INTERVAL: ${SCHEDULER_INTERVAL:-30s}
 
 x-app-depends: &app-depends
   kafka:
     condition: service_healthy
   mongo:
     condition: service_healthy
-  mongo-init:
-    condition: service_completed_successfully
   azurite:
     condition: service_healthy
+  mongo-init:
+    condition: service_completed_successfully
+  kafka-init:
+    condition: service_completed_successfully
+  azurite-init:
+    condition: service_completed_successfully
 
 x-app-healthcheck: &app-healthcheck
   test: ["CMD-SHELL", "curl -fsS http://localhost:8081/actuator/health | grep -q UP || exit 1"]
@@ -93,9 +96,42 @@ services:
     environment:
       MONGO_DATABASE: partitioner_batch
       BATCH_RETENTION_DAYS: ${BATCH_RETENTION_DAYS:-7}
+      APP_SHEDLOCK_COLLECTION: ${APP_SHEDLOCK_COLLECTION:-scheduler_locks}
+      APP_SHEDLOCK_FIELD_NAME: ${APP_SHEDLOCK_FIELD_NAME:-_id}
     volumes:
       - ./docker:/init:ro
     entrypoint: ["bash", "/init/mongo-init.sh"]
+    restart: "no"
+
+  kafka-init:
+    image: confluentinc/cp-kafka:7.8.0
+    container_name: psl-kafka-init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      KAFKA_BOOTSTRAP: kafka:29092
+      APP_KAFKA_TOPIC: ${APP_KAFKA_TOPIC:-movimentos-particionados}
+      APP_KAFKA_TOPIC_PARTITIONS: ${APP_KAFKA_TOPIC_PARTITIONS:-10}
+    volumes:
+      - ./docker:/init:ro
+    entrypoint: ["bash", "/init/kafka-init.sh"]
+    restart: "no"
+
+  azurite-init:
+    image: mcr.microsoft.com/azure-cli:latest
+    container_name: psl-azurite-init
+    depends_on:
+      azurite:
+        condition: service_healthy
+    environment:
+      APP_BLOB_ENDPOINT: http://azurite:10000/devstoreaccount1
+      APP_BLOB_ACCOUNT_NAME: devstoreaccount1
+      APP_BLOB_ACCOUNT_KEY: "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw=="
+      APP_BLOB_CONTAINER: ${APP_BLOB_CONTAINER:-movimentos}
+    volumes:
+      - ./docker:/init:ro
+    entrypoint: ["bash", "/init/azurite-init.sh"]
     restart: "no"
 
   azurite:

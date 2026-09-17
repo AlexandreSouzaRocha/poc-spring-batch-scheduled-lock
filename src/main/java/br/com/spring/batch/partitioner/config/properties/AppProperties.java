@@ -56,7 +56,6 @@ public record AppProperties(
 
     public record KafkaSettings(
             @NotBlank String topic,
-            @Min(1) int topicPartitions,
             @Min(1) int sendTimeoutSeconds) {
     }
 }

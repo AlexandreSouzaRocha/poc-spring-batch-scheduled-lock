@@ -28,7 +28,7 @@ JSON           := python3 -m json.tool
 
 .DEFAULT_GOAL := help
 
-.PHONY: help up up-infra down restart ps logs app-logs build test run generate status file verify locks lock-check \
+.PHONY: help up up-infra infra-init down restart ps logs app-logs build test run generate status file verify locks lock-check \
 	metrics metrics-partitions prometheus kafka-count kafka-tail blob-ls chaos chaos-off kill-owner start-all \
 	e2e chaos-test clean
 
@@ -41,9 +41,12 @@ up: ## Build da imagem + sobe infra, generator (:8090) e partitioner-1/2 (:8081/
 	docker compose up -d --build --wait
 	@echo "kafka-ui: http://localhost:8080 | generator: $(GENERATOR_URL) | partitioners: $(P1_URL) $(P2_URL)"
 
-up-infra: ## Sobe só a infra (kafka, mongo, azurite) para rodar a app local com 'make run'
+up-infra: ## Sobe só a infra (kafka, mongo, azurite) e roda os inits, para rodar a app local com 'make run'
 	docker compose up -d --wait kafka kafka-ui mongo azurite
-	docker compose up mongo-init
+	docker compose up mongo-init kafka-init azurite-init
+
+infra-init: ## Reexecuta os scripts de init da infra (collections, índices, tópico e container do blob)
+	docker compose up --force-recreate mongo-init kafka-init azurite-init
 
 down: ## Derruba a stack e remove volumes (blob, mongo)
 	docker compose down -v
@@ -119,10 +122,10 @@ chaos: ## Injeta falha nos 2 particionadores. POINT=VALIDATE|CLEANUP|PARTITION|M
 chaos-off: ## Remove a injeção de falha dos 2 particionadores
 	@for url in $(P1_URL) $(P2_URL); do curl -fsS -X DELETE "$$url/chaos" || true; done; echo "chaos desativado"
 
-kill-owner: ## docker kill na instância dona do lock file-partitioning (simula crash)
+kill-owner: ## docker kill na instância dona do lock file-processing (simula crash)
 	@owner=$$(curl -fsS "$(P1_URL)/locks" 2>/dev/null || curl -fsS "$(P2_URL)/locks") ; \
-	owner=$$(echo "$$owner" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next((l.get("locked_by") for l in d["locks"] if l.get("_id")=="file-partitioning"), ""))'); \
-	echo "dono do lock file-partitioning: $$owner"; docker kill psl-$$owner
+	owner=$$(echo "$$owner" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next((l.get("locked_by") for l in d["locks"] if l.get("_id")=="file-processing"), ""))'); \
+	echo "dono do lock file-processing: $$owner"; docker kill psl-$$owner
 
 start-all: ## Sobe de novo containers parados/mortos
 	docker compose up -d --wait $(APPS)

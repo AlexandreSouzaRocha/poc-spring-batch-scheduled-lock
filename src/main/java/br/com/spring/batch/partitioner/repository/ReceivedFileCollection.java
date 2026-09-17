@@ -10,7 +10,6 @@ import br.com.spring.batch.partitioner.model.document.ReceivedFileFields;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.mongodb.core.FindAndModifyOptions;
 import org.springframework.data.mongodb.core.MongoTemplate;
-import org.springframework.data.mongodb.core.index.Index;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
@@ -28,10 +27,6 @@ public class ReceivedFileCollection {
 
     public ReceivedFileCollection(MongoTemplate mongoTemplate) {
         this.mongoTemplate = mongoTemplate;
-    }
-
-    public void createIndex(Index index) {
-        mongoTemplate.indexOps(NAME).createIndex(index);
     }
 
     public boolean insertIfAbsent(ReceivedFileDocument document) {

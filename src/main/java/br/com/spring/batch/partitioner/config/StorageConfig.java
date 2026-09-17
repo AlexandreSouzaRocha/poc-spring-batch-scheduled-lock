@@ -21,13 +21,11 @@ public class StorageConfig {
 
     @Bean
     public BlobContainerClient blobContainerClient(BlobSettings settings) {
-        BlobContainerClient container = new BlobServiceClientBuilder()
+        return new BlobServiceClientBuilder()
                 .endpoint(settings.endpoint())
                 .credential(new StorageSharedKeyCredential(settings.accountName(), settings.accountKey()))
                 .buildClient()
                 .getBlobContainerClient(settings.container());
-        container.createIfNotExists();
-        return container;
     }
 
     @Bean

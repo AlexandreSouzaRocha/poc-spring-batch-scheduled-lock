@@ -5,7 +5,7 @@ from collections import defaultdict
 
 since = sys.argv[1]
 containers = ["partitioner-1", "partitioner-2"]
-pattern = re.compile(r"^(\S+)\s.*\] scheduler (lock\.acquired|cycle\.end) .* scheduler=(\S+) owner=(\S+)")
+pattern = re.compile(r"^(\S+)\s.*operation=(lock\.acquired|cycle\.end)\s+scheduler=(\S+)\s+owner=(\S+)")
 intervals = defaultdict(list)
 open_cycles = {}
 cycles = defaultdict(int)

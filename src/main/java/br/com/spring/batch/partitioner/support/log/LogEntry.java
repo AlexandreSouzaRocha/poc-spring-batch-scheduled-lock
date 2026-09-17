@@ -10,13 +10,21 @@ import tools.jackson.databind.json.JsonMapper;
 public final class LogEntry {
 
     private static final JsonMapper JSON = JsonMapper.builder().build();
+    private static final String CONTEXT = "context";
+    private static final String OPERATION = "operation";
+    private static final String MESSAGE = "msg";
+    private static final String DATA = "data";
+    private static final String ERROR = "ex";
 
     private final LogTarget target;
     private final Map<String, Object> fields = new LinkedHashMap<>();
     private final Map<String, Object> data = new LinkedHashMap<>();
+    private Map<String, Object> error;
 
     LogEntry(Logger logger, Level level, String context, String operation) {
-        this.target = new LogTarget(logger, level, context, operation);
+        this.target = new LogTarget(logger, level);
+        fields.put(CONTEXT, context);
+        fields.put(OPERATION, operation);
     }
 
     public LogEntry field(String name, Object value) {
@@ -29,8 +37,8 @@ public final class LogEntry {
         return this;
     }
 
-    public LogEntry error(Throwable error) {
-        data.put("error", ErrorSummary.of(error));
+    public LogEntry error(Throwable throwable) {
+        error = ErrorSummary.of(throwable);
         return this;
     }
 
@@ -38,38 +46,37 @@ public final class LogEntry {
         if (!target.enabled()) {
             return;
         }
-        StringBuilder line = new StringBuilder(256)
-                .append('[').append(RequestContext.currentRequestId()).append("] ")
-                .append(target.context()).append(' ')
-                .append(target.operation()).append(' ')
-                .append(message);
-        fields.forEach((name, value) -> line.append(' ').append(name).append('=').append(format(value)));
-        appendData(line);
+        StringBuilder line = new StringBuilder(256);
+        fields.forEach((name, value) -> append(line, name, LogValues.format(value)));
+        append(line, MESSAGE, LogValues.quote("[" + RequestContext.currentRequestId() + "] " + message));
+        appendJson(line, DATA, data);
+        appendJson(line, ERROR, error);
         target.write(line.toString());
     }
 
-    private void appendData(StringBuilder line) {
-        if (data.isEmpty()) {
+    private void appendJson(StringBuilder line, String name, Map<String, Object> json) {
+        if (json == null || json.isEmpty()) {
             return;
         }
-        line.append(' ').append(toJson());
+        append(line, name, toJson(json));
     }
 
-    private String toJson() {
+    private static void append(StringBuilder line, String name, String value) {
+        if (!line.isEmpty()) {
+            line.append(' ');
+        }
+        line.append(name).append('=').append(value);
+    }
+
+    private static String toJson(Map<String, Object> json) {
         try {
-            return JSON.writeValueAsString(data);
+            return JSON.writeValueAsString(json);
         } catch (RuntimeException e) {
             return "{\"json_error\":\"" + e.getClass().getSimpleName() + "\"}";
         }
     }
 
-    private static String format(Object value) {
-        String text = String.valueOf(value);
-        boolean needsQuotes = text.isEmpty() || text.chars().anyMatch(Character::isWhitespace);
-        return needsQuotes ? '"' + text + '"' : text;
-    }
-
-    private record LogTarget(Logger logger, Level level, String context, String operation) {
+    private record LogTarget(Logger logger, Level level) {
 
         boolean enabled() {
             return logger.isEnabledForLevel(level);

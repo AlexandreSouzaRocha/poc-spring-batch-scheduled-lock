@@ -141,7 +141,7 @@ chaos_off() {
 
 print_metrics() {
   local since=$1 file_id=$2
-  logs_since "$since" | grep "fileId=$file_id" | grep -E "job.metrics|step.metrics" \
+  logs_since "$since" | grep "fileId=$file_id" | grep -E "operation=(step|job)\.metrics" \
     | grep -v "step=partitionWorkerStep" \
-    | sed -E 's/^([^ ]+) .*(step|job)\.metrics (STEP|JOB)_METRICS /  \1 /; s/ \{.*$//'
+    | sed -E 's/ level=[A-Z]+ logger=[^ ]+ thread=[^ ]+ context=metrics operation=[a-z.]+//; s/ msg="[^"]*"//; s/ (data|ex)=.*$//; s/^/  /'
 }

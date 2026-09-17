@@ -9,9 +9,9 @@ usam o JobRepository customizado no MongoDB, com a mesma estrutura do
 [poc-spring-batch](https://github.com/AlexandreSouzaRocha/poc-spring-batch).
 
 ```
-generator ──► blob entrada/ ──► polling (@Scheduled + @SchedulerLock) ──► received_file_management
-                                                                                 │
-             partitioner-1 ┐                                                     ▼
+generator ──► blob entrada/ ──► scheduler único (@Scheduled + @SchedulerLock)
+                                     │ 1. lista entrada/ e registra em received_file_management
+             partitioner-1 ┐         │ 2. particiona os pendentes no mesmo ciclo
                            ├─ disputam o lock ──► filePartitionJob (Spring Batch, JobRepository no Mongo)
              partitioner-2 ┘                          │
                                                       ├─► aberto/ fechado/ saldo/ ultima/  (N partições em paralelo)
@@ -45,6 +45,10 @@ make chaos-test SCENARIO=all              # partition-fail, publish-fail, invali
 
 `make help` lista todos os alvos.
 
+Collections, índices, tópico do Kafka e container do blob são criados pelos containers de init
+(`mongo-init`, `kafka-init`, `azurite-init`), nunca pela aplicação. Ver
+[ARCHITECTURE.md](docs/ARCHITECTURE.md#infraestrutura-criada-fora-da-aplicação).
+
 ## Layout do arquivo
 
 ```
@@ -61,8 +65,9 @@ Tipos: `ABERTO`, `FECHADO`, `SALDO`, `ULTIMA`. **Cada partição recebe uma cóp
 | `app.partition.count` | `APP_PARTITION_COUNT` | `10` | Arquivos gerados por arquivo grande |
 | `app.partition.max-attempts` | `APP_PARTITION_MAX_ATTEMPTS` | `3` | Tentativas antes de mover para `erros/` |
 | `app.partition.max-concurrent-files` | `APP_PARTITION_MAX_CONCURRENT_FILES` | `1` | Arquivos grandes em paralelo no mesmo ciclo |
-| `app.scheduler.*.interval` | `APP_POLLING_INTERVAL` / `APP_PARTITIONING_INTERVAL` | `30s` | Intervalo do polling e do particionamento |
-| `app.scheduler.*.lock-at-most-for` | `APP_*_LOCK_AT_MOST_FOR` | `60s` | Validade do lock (renovada pelo keep-alive) |
+| `app.scheduler.file-processing.interval` | `APP_SCHEDULER_INTERVAL` | `30s` | Intervalo do ciclo (polling + particionamento) |
+| `app.scheduler.file-processing.lock-at-most-for` | `APP_SCHEDULER_LOCK_AT_MOST_FOR` | `60s` | Validade do lock (renovada pelo keep-alive) |
+| `app.shedlock.fields.name` | `APP_SHEDLOCK_FIELD_NAME` | `_id` | Campo que guarda o nome do lock |
 | `app.shedlock.collection` | `APP_SHEDLOCK_COLLECTION` | `scheduler_locks` | Collection do lock |
 | `app.shedlock.fields.*` | `APP_SHEDLOCK_FIELD_*` | `_id`, `lock_until`, `locked_at`, `locked_by` | Nomes dos campos do lock |
 | `app.blob.upload-block-size-mb` | `APP_BLOB_UPLOAD_BLOCK_SIZE_MB` | `8` | Tamanho do bloco de upload (memória por partição) |

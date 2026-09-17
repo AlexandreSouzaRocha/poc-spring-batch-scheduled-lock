@@ -7,30 +7,29 @@ flowchart LR
     GEN["generator<br/>POST /generator/files"] -->|upload em blocos| IN[("Azure Blob<br/>entrada/")]
 
     subgraph PART["partitioner-1 / partitioner-2 (mesma imagem)"]
-        direction TB
-        POLL["BlobPollingScheduler<br/>@Scheduled 30s<br/>@SchedulerLock blob-polling"]
-        CYCLE["FilePartitionScheduler<br/>@Scheduled 30s<br/>@SchedulerLock file-partitioning"]
+        CYCLE["FileProcessingScheduler<br/>@Scheduled 30s<br/>@SchedulerLock file-processing"]
         JOB["filePartitionJob<br/>(Spring Batch)"]
-        CYCLE --> JOB
+        CYCLE -->|2. particiona os pendentes| JOB
     end
 
-    IN -->|list| POLL
-    POLL -->|registra ORIGINAL/PENDING| RFM[("MongoDB<br/>received_file_management")]
+    IN -->|1. lista entrada/| CYCLE
+    CYCLE -->|registra ORIGINAL/PENDING| RFM[("MongoDB<br/>received_file_management")]
     RFM -->|PENDING / PARTITIONING / FAILED| CYCLE
     JOB -->|partições em paralelo| OUT[("Azure Blob<br/>aberto/ fechado/ saldo/ ultima/")]
     JOB -->|move original| PROC[("Azure Blob<br/>processados/")]
     JOB -->|resume/recovery| JR[("MongoDB<br/>batch_job_* / batch_step_*")]
     JOB -->|1 msg por partição| KAFKA[["Kafka<br/>movimentos-particionados"]]
-    POLL & CYCLE -.->|lock| LOCK[("MongoDB<br/>scheduler_locks")]
+    CYCLE -.->|lock| LOCK[("MongoDB<br/>scheduler_locks")]
 ```
 
-As duas instâncias rodam os dois schedulers a cada 30 segundos, mas o ShedLock só deixa
-**uma** executar cada ciclo. O polling e o particionamento usam locks diferentes: um
-arquivo grande em processamento não bloqueia a descoberta de arquivos novos.
+As duas instâncias rodam o mesmo scheduler a cada 30 segundos, mas o ShedLock só deixa **uma**
+executar cada ciclo. O ciclo faz as duas coisas em sequência: lista `entrada/` e registra os
+arquivos novos, e em seguida particiona tudo que estiver pendente. Com isso, um arquivo recém
+descoberto é particionado no mesmo ciclo, sem a espera de um ciclo para o outro.
 
-O polling só **registra** os arquivos. O particionamento consome a
-`received_file_management`, não o blob. Assim, um arquivo que já saiu de `entrada/`
-(movido para `processados/` antes de uma falha na publicação) continua recuperável.
+O particionamento consome a `received_file_management`, não o blob. Assim, um arquivo que já saiu
+de `entrada/` (movido para `processados/` antes de uma falha na publicação) continua recuperável,
+e uma execução órfã de uma instância que morreu é retomada no ciclo seguinte.
 
 ## Job de particionamento
 
@@ -138,6 +137,7 @@ faz as operações via `MongoTemplate`, usando os nomes definidos em `app.shedlo
 * **Duplicate key:** se o campo do nome não for `_id`, o store cria um índice único nele. Sem esse índice, o upsert não gera duplicate key e duas instâncias conseguiriam o lock.
 * **Write concern:** o `MongoTemplate` do lock usa `WriteConcern.MAJORITY`.
 * **Keep-alive:** o `KeepAliveLockProvider` renova o lock a cada `lock-at-most-for / 2` enquanto o ciclo roda. Um arquivo grande não perde o lock, e um lock órfão expira em até `lock-at-most-for`.
+* **Um lock só:** o ciclo faz polling e particionamento em sequência, então existe um único lock (`file-processing`). Enquanto uma instância processa um arquivo grande, a outra não descobre arquivos novos; eles entram no ciclo seguinte.
 
 ```yaml
 app:
@@ -149,6 +149,24 @@ app:
       locked-at: locked_at
       locked-by: locked_by
 ```
+
+## Infraestrutura criada fora da aplicação
+
+A aplicação **não cria nada** no startup: nem collection, nem índice, nem tópico, nem container do
+blob. Se algo não existir, a operação falha e o problema aparece no log, em vez de a aplicação
+criar um recurso com a configuração errada em produção.
+
+| Recurso | Quem cria | Script |
+|---|---|---|
+| Replica set, collections (`batch_*`, `received_file_management`, `scheduler_locks`), sequences e índices | `mongo-init` | [`docker/mongo-init.sh`](../docker/mongo-init.sh) + [`docker/mongo-collections.js`](../docker/mongo-collections.js) |
+| Índices TTL de expurgo do JobRepository | `mongo-init` | [`docker/mongo-ttl-indexes.js`](../docker/mongo-ttl-indexes.js) |
+| Tópico `movimentos-particionados` (10 partições) | `kafka-init` | [`docker/kafka-init.sh`](../docker/kafka-init.sh) |
+| Container `movimentos` no blob | `azurite-init` | [`docker/azurite-init.sh`](../docker/azurite-init.sh) |
+
+Os três rodam como containers de init no compose, e o generator e os particionadores só sobem
+depois que eles terminam (`service_completed_successfully`). Os scripts são idempotentes, então
+`make infra-init` pode ser reexecutado. O índice único do lock só é criado quando
+`app.shedlock.fields.name` não é `_id`, que é a mesma condição que o provider exige.
 
 ## Collections
 
@@ -216,7 +234,7 @@ br.com.spring.batch.partitioner
 ├── controller    REST: gerador, consulta/verificação de arquivos, locks, chaos
 ├── service       polling, ciclo de particionamento, launcher/runner do job, rejeição, status, verificação
 │   └── generation  worker de geração de massa (profile generator)
-├── scheduler     @Scheduled + @SchedulerLock e o LockedCycleRunner (request_id, log e auditoria do lock)
+├── scheduler     FileProcessingScheduler (@Scheduled + @SchedulerLock) e o LockedCycleRunner (request_id, log e auditoria do lock)
 ├── batch
 │   ├── job         definição do job, nomes dos steps e JobParameters
 │   ├── step        FileStep / FileStepSupport (carrega o arquivo e aplica o chaos)

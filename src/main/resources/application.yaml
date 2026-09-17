@@ -53,22 +53,15 @@ app:
 
   kafka:
     topic: ${APP_KAFKA_TOPIC:movimentos-particionados}
-    topic-partitions: ${APP_KAFKA_TOPIC_PARTITIONS:10}
     send-timeout-seconds: ${APP_KAFKA_SEND_TIMEOUT_SECONDS:30}
 
   scheduler:
-    blob-polling:
-      lock-name: blob-polling
-      initial-delay: ${APP_POLLING_INITIAL_DELAY:10s}
-      interval: ${APP_POLLING_INTERVAL:30s}
-      lock-at-most-for: ${APP_POLLING_LOCK_AT_MOST_FOR:60s}
-      lock-at-least-for: ${APP_POLLING_LOCK_AT_LEAST_FOR:20s}
-    partitioning:
-      lock-name: file-partitioning
-      initial-delay: ${APP_PARTITIONING_INITIAL_DELAY:15s}
-      interval: ${APP_PARTITIONING_INTERVAL:30s}
-      lock-at-most-for: ${APP_PARTITIONING_LOCK_AT_MOST_FOR:60s}
-      lock-at-least-for: ${APP_PARTITIONING_LOCK_AT_LEAST_FOR:20s}
+    file-processing:
+      lock-name: ${APP_SCHEDULER_LOCK_NAME:file-processing}
+      initial-delay: ${APP_SCHEDULER_INITIAL_DELAY:10s}
+      interval: ${APP_SCHEDULER_INTERVAL:30s}
+      lock-at-most-for: ${APP_SCHEDULER_LOCK_AT_MOST_FOR:60s}
+      lock-at-least-for: ${APP_SCHEDULER_LOCK_AT_LEAST_FOR:20s}
 
   shedlock:
     collection: ${APP_SHEDLOCK_COLLECTION:scheduler_locks}
@@ -90,7 +83,6 @@ management:
       show-details: always
 
 logging:
-  exception-conversion-word: "%wEx{short}"
   level:
     root: INFO
     org.springframework.batch: WARN

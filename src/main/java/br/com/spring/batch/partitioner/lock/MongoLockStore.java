@@ -9,10 +9,8 @@ import br.com.spring.batch.partitioner.config.properties.ShedLockProperties.Fiel
 import org.bson.Document;
 
 import org.springframework.dao.DuplicateKeyException;
-import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.FindAndModifyOptions;
 import org.springframework.data.mongodb.core.MongoTemplate;
-import org.springframework.data.mongodb.core.index.Index;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 
@@ -27,7 +25,6 @@ public class MongoLockStore {
     public MongoLockStore(MongoTemplate mongoTemplate, ShedLockProperties properties) {
         this.mongoTemplate = mongoTemplate;
         this.properties = properties;
-        ensureUniqueName();
     }
 
     public boolean acquire(String name, Instant lockUntil, Instant now, String owner) {
@@ -67,16 +64,5 @@ public class MongoLockStore {
 
     public String collection() {
         return properties.collection();
-    }
-
-    private void ensureUniqueName() {
-        FieldNames fields = properties.fields();
-        if (fields.nameIsMongoId()) {
-            return;
-        }
-        mongoTemplate.indexOps(properties.collection()).createIndex(new Index()
-                .on(fields.name(), Sort.Direction.ASC)
-                .unique()
-                .named(fields.name() + "_unique"));
     }
 }
