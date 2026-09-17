@@ -63,10 +63,12 @@ public class CustomJobRepositoryFactoryBean extends AbstractJobRepositoryFactory
             this.jobInstanceIncrementer = new CustomSequenceIncrementer(this.mongoOperations, "batch_job_instance_seq");
         }
         if (this.jobExecutionIncrementer == null) {
-            this.jobExecutionIncrementer = new CustomSequenceIncrementer(this.mongoOperations, "batch_job_execution_seq");
+            this.jobExecutionIncrementer = new CustomSequenceIncrementer(this.mongoOperations,
+                    "batch_job_execution_seq");
         }
         if (this.stepExecutionIncrementer == null) {
-            this.stepExecutionIncrementer = new CustomSequenceIncrementer(this.mongoOperations, "batch_step_execution_seq");
+            this.stepExecutionIncrementer = new CustomSequenceIncrementer(this.mongoOperations,
+                    "batch_step_execution_seq");
         }
     }
 }

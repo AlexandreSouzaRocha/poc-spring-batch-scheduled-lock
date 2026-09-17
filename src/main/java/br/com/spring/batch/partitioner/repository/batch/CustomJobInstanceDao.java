@@ -54,8 +54,7 @@ public class CustomJobInstanceDao implements JobInstanceDao {
 
         Assert.state(getJobInstance(jobName, jobParameters) == null, "JobInstance must not already exist");
 
-        org.springframework.batch.core.repository.persistence.JobInstance jobInstanceToSave =
-                new org.springframework.batch.core.repository.persistence.JobInstance();
+        org.springframework.batch.core.repository.persistence.JobInstance jobInstanceToSave = new org.springframework.batch.core.repository.persistence.JobInstance();
         jobInstanceToSave.setJobName(jobName);
         String key = this.jobKeyGenerator.generateKey(jobParameters);
         jobInstanceToSave.setJobKey(key);
@@ -144,10 +143,10 @@ public class CustomJobInstanceDao implements JobInstanceDao {
     @Override
     public List<String> getJobNames() {
         Query query = new Query().with(Sort.by(Sort.Order.asc("jobName")));
-        return this.mongoOperations.findDistinct(query, "jobName", COLLECTION_NAME, JobInstanceDocument.class, String.class);
+        return this.mongoOperations.findDistinct(query, "jobName", COLLECTION_NAME, JobInstanceDocument.class,
+                String.class);
     }
 
-    @SuppressWarnings("removal")
     @Deprecated(forRemoval = true)
     @Override
     public List<JobInstance> findJobInstancesByName(String jobName, int start, int count) {
