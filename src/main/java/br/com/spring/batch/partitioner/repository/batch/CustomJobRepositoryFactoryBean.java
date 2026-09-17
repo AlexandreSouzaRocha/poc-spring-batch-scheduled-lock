@@ -2,12 +2,11 @@ package br.com.spring.batch.partitioner.repository.batch;
 
 import org.springframework.batch.core.repository.support.AbstractJobRepositoryFactoryBean;
 import org.springframework.batch.core.repository.support.SimpleJobRepository;
-import org.springframework.beans.factory.InitializingBean;
 import org.springframework.data.mongodb.core.MongoOperations;
 import org.springframework.jdbc.support.incrementer.DataFieldMaxValueIncrementer;
 import org.springframework.util.Assert;
 
-public class CustomJobRepositoryFactoryBean extends AbstractJobRepositoryFactoryBean implements InitializingBean {
+public class CustomJobRepositoryFactoryBean extends AbstractJobRepositoryFactoryBean {
 
     private MongoOperations mongoOperations;
     private DataFieldMaxValueIncrementer jobInstanceIncrementer;
