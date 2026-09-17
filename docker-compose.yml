@@ -73,7 +73,7 @@ services:
   mongo:
     image: mongo:7
     container_name: psl-mongo
-    command: ["--replSet", "rs0", "--bind_ip_all", "--setParameter", "transactionLifetimeLimitSeconds=300"]
+    command: ["--replSet", "rs0", "--bind_ip_all", "--setParameter", "transactionLifetimeLimitSeconds=60"]
     ports:
       - "27017:27017"
     volumes:

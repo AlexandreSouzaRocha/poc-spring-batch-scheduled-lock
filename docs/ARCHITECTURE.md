@@ -16,7 +16,7 @@ flowchart LR
 
     IN -->|list| POLL
     POLL -->|registra ORIGINAL/PENDING| RFM[("MongoDB<br/>received_file_management")]
-    RFM -->|PENDING / PROCESSING / FAILED| CYCLE
+    RFM -->|PENDING / PARTITIONING / FAILED| CYCLE
     JOB -->|partições em paralelo| OUT[("Azure Blob<br/>aberto/ fechado/ saldo/ ultima/")]
     JOB -->|move original| PROC[("Azure Blob<br/>processados/")]
     JOB -->|resume/recovery| JR[("MongoDB<br/>batch_job_* / batch_step_*")]
@@ -38,8 +38,8 @@ O polling só **registra** os arquivos. O particionamento consome a
 flowchart LR
     V["validateHeaderStep"] --> C["cleanupPartitionsStep<br/><i>roda em toda tentativa</i>"]
     C --> M["partitionMasterStep"]
-    M -->|N workers<br/>virtual threads| W["partitionWorkerStep × N"]
-    M --> MV["moveOriginalStep"] --> P["publishPartitionsStep"]
+    M -->|N workers<br/>virtual threads| W["partitionWorkerStep × N<br/><i>só blob</i>"]
+    M --> R["registerPartitionsStep<br/><i>insere no Mongo</i>"] --> MV["moveOriginalStep"] --> P["publishPartitionsStep"]
 ```
 
 | Step | Responsabilidade | Classe |
@@ -47,9 +47,10 @@ flowchart LR
 | `validateHeaderStep` | Lê só os 19 primeiros bytes do blob, valida o header e o tamanho do arquivo contra o layout, e grava `movement` e `partitioning` no documento | `ValidateHeaderTasklet`, `FileInspector` |
 | `cleanupPartitionsStep` | Se nenhuma tentativa anterior concluiu o `partitionMasterStep`, apaga as partições que sobraram (blob por prefixo + documentos) | `CleanupPartitionsTasklet`, `PartitionCleaner` |
 | `partitionMasterStep` | Divide as linhas em N faixas (`app.partition.count`) e executa um worker por faixa em virtual threads | `FilePartitioner`, `PartitionPlan` |
-| `partitionWorkerStep` | Grava o header e copia **só a faixa de bytes** da partição, do blob original para o blob de destino, em streaming | `PartitionWriterTasklet`, `PartitionBlobWriter` |
+| `partitionWorkerStep` | Grava o header e copia **só a faixa de bytes** da partição, do blob original para o blob de destino, em streaming. **Não grava nada no Mongo** | `PartitionWriterTasklet`, `PartitionBlobWriter` |
+| `registerPartitionsStep` | Só roda depois que **todas** as partições estão no blob. Confere se cada uma existe com o tamanho esperado e insere todos os documentos de uma vez (status `UPLOADED`) numa transação curta | `RegisterPartitionsTasklet`, `PartitionRegistration` |
 | `moveOriginalStep` | Move o original para `processados/` (cópia server-side + delete, idempotente) | `MoveOriginalTasklet`, `OriginalFileArchiver` |
-| `publishPartitionsStep` | Publica 1 mensagem por partição ainda não publicada e aguarda o ack do broker | `PublishPartitionsTasklet`, `PartitionPublication` |
+| `publishPartitionsStep` | Publica 1 mensagem por partição ainda não publicada, aguarda o ack do broker e só então marca `published_at` + `COMPLETED` | `PublishPartitionsTasklet`, `PartitionPublication` |
 
 ### Por que o particionamento é paralelo sem ler o arquivo inteiro
 
@@ -76,6 +77,31 @@ resto da divisão das linhas vai para as primeiras partições, uma linha a mais
 O `BlobOutputStream` do SDK foi descartado porque enfileira blocos sem limite quando a
 leitura é mais rápida que o upload. Com arquivos de 755 MB, ele causou `OutOfMemoryError`.
 
+## Transações do MongoDB
+
+O limite de transação do MongoDB em produção é **60 s** (`transactionLifetimeLimitSeconds`), e o
+docker-compose usa o mesmo valor. A regra do job é **nenhum I/O externo (blob ou Kafka) dentro de
+transação do Mongo**:
+
+* **Steps sem transação do Mongo:** todos os tasklets usam `ResourcelessTransactionManager`. O `MongoTemplate` usa `SessionSynchronization.ON_ACTUAL_TRANSACTION` e, sem transação nativa do Mongo, não abre sessão. Assim uma cópia de 1,5 GB ou um move de 15 GB não fica dentro de transação. As atualizações do `StepExecution` e do `ExecutionContext` são feitas pelo JobRepository em transações curtas próprias.
+* **Onde há transação:** só em `registerPartitionsStep` (`PartitionFileRepository.replaceAll`: remove + insere todas as partições). Dura milissegundos e roda depois de todo o upload.
+* **Demais gravações:** são operações únicas e atômicas por natureza (`updateOne` / `updateMany`), idempotentes em caso de restart.
+
+O cenário `slow-io` do chaos test força 90 s de I/O no worker, no move e na publicação, e confere
+que o arquivo termina na 1ª tentativa, sem `NoSuchTransaction`.
+
+## Status
+
+| Documento | Fluxo |
+|---|---|
+| Original | `PENDING` → `PARTITIONING` → `COMPLETED`, ou `FAILED` (retentativa) → `ERROR` (inválido ou tentativas esgotadas) |
+| Partição | `UPLOADED` (inserida depois de todo o upload) → `COMPLETED` (depois do ack do Kafka, junto com `published_at`) |
+
+A ordem **ack do Kafka → `published_at`/`COMPLETED`** é proposital. Se o processo morrer entre as
+duas, a mensagem é reenviada no restart (duplicata, que o consumidor resolve pelo `blob_path`).
+Na ordem inversa, a partição apareceria como publicada sem a mensagem ter sido entregue, e a
+mensagem se perderia sem que desse para detectar.
+
 ## Resume e recovery
 
 A identidade do job é o parâmetro `fileId`, então cada arquivo tem uma única
@@ -86,6 +112,7 @@ A identidade do job é o parâmetro `fileId`, então cada arquivo tem uma única
 | `validateHeaderStep`, com `InvalidFileException` | Não há retentativa: o arquivo vai para `erros/` com status `ERROR` |
 | `validateHeaderStep`, com erro transitório | Valida de novo |
 | `partitionMasterStep` (qualquer worker) | O cleanup apaga as partições da tentativa anterior e **todos** os workers rodam de novo: o particionamento é tudo ou nada. Quem decide isso é o `SimpleStepExecutionSplitter` com `allowStartIfComplete=true`, configurado no master. Esse flag no worker é ignorado pelo splitter padrão, que retomaria só as partições que falharam |
+| `registerPartitionsStep` | Particionamento pulado (`COMPLETED`), o cleanup não apaga nada e o registro é refeito. É idempotente: remove e insere de novo. Se alguma partição não estiver no blob, o step falha até esgotar as tentativas |
 | `moveOriginalStep` | Validação e particionamento são pulados (`COMPLETED`), o cleanup não apaga nada e o move é refeito. Se a cópia já existia e só faltava o delete, o move apenas conclui |
 | `publishPartitionsStep` | Todos os passos anteriores são pulados e só as partições sem `published_at` são publicadas |
 | Instância morreu no meio | O lock expira em `lock-at-most-for` e a outra instância assume. `AbandonedExecutionRecovery` marca a execução presa em `STARTED` como `FAILED` e o restart segue as regras acima |

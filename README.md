@@ -29,7 +29,7 @@ Pré-requisitos: Docker e Docker Compose. Java 25 só é necessário para build 
 ```bash
 make up                                   # infra + generator (:8090) + partitioner-1 (:8081) + partitioner-2 (:8082)
 make generate LINES=5000000 TYPE=FECHADO  # gera o arquivo grande direto no blob (entrada/)
-make status                               # acompanha: PENDING -> PROCESSING -> COMPLETED
+make status                               # acompanha: PENDING -> PARTITIONING -> COMPLETED
 make metrics                              # STEP_METRICS / JOB_METRICS (tempo de particionamento)
 make lock-check                           # ciclos por instância e overlaps=0
 make kafka-tail                           # mensagens publicadas
@@ -40,7 +40,7 @@ Testes automatizados:
 ```bash
 make test                                 # unitários + integração do lock (Testcontainers)
 make e2e LINES=5000000 FILES=2            # ponta a ponta com validações no blob, Mongo, Kafka e lock
-make chaos-test SCENARIO=all              # partition-fail, publish-fail, invalid-file, kill-owner
+make chaos-test SCENARIO=all              # partition-fail, publish-fail, invalid-file, slow-io, kill-owner
 ```
 
 `make help` lista todos os alvos.
@@ -67,6 +67,9 @@ Tipos: `ABERTO`, `FECHADO`, `SALDO`, `ULTIMA`. **Cada partição recebe uma cóp
 | `app.shedlock.fields.*` | `APP_SHEDLOCK_FIELD_*` | `_id`, `lock_until`, `locked_at`, `locked_by` | Nomes dos campos do lock |
 | `app.blob.upload-block-size-mb` | `APP_BLOB_UPLOAD_BLOCK_SIZE_MB` | `8` | Tamanho do bloco de upload (memória por partição) |
 | `app.kafka.topic` | `APP_KAFKA_TOPIC` | `movimentos-particionados` | Tópico de saída |
+
+O MongoDB roda com `transactionLifetimeLimitSeconds=60`, igual a produção. Nenhum I/O de blob ou
+Kafka acontece dentro de transação do Mongo (ver [ARCHITECTURE.md](docs/ARCHITECTURE.md#transações-do-mongodb)).
 
 ## Endpoints
 

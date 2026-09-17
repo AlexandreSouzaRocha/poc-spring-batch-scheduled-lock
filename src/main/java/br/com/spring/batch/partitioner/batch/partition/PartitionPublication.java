@@ -23,8 +23,7 @@ public class PartitionPublication {
     public List<ReceivedFileDocument> publishPending(ReceivedFileDocument original) throws Exception {
         List<ReceivedFileDocument> pending = repository.findUnpublished(original.id());
         publisher.publishAndAwait(pending);
-        Instant publishedAt = Instant.now();
-        pending.forEach(partition -> repository.markPublished(partition.id(), publishedAt));
+        repository.completePublished(pending.stream().map(ReceivedFileDocument::id).toList(), Instant.now());
         return pending;
     }
 

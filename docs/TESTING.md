@@ -53,7 +53,7 @@ TODAS AS VALIDAÇÕES PASSARAM
 ## Resume e recovery (chaos)
 
 ```bash
-make chaos-test SCENARIO=all          # ou partition-fail | publish-fail | invalid-file | kill-owner
+make chaos-test SCENARIO=all          # ou partition-fail | publish-fail | invalid-file | slow-io | kill-owner
 LINES=2000000 ./scripts/chaos-test.sh kill-owner
 ```
 
@@ -63,6 +63,7 @@ A falha é injetada nas duas instâncias via `PUT /chaos`, porque não se sabe q
 |---|---|---|
 | `partition-fail` | A partição 3 falha na 1ª tentativa, depois de gravada | `COMPLETED` na 2ª tentativa; o cleanup fez **rollback** das partições da 1ª tentativa; partições íntegras; Kafka só com as mensagens da tentativa bem-sucedida |
 | `publish-fail` | A publicação no Kafka falha na 1ª tentativa | `COMPLETED` na 2ª tentativa; cleanup **pulado**; cada partição gravada **uma única vez**; original movido uma única vez (resume a partir do `publishPartitionsStep`) |
+| `slow-io` | 90 s de atraso no worker (`PARTITION`), no `MOVE` e no `PUBLISH`, com o Mongo limitado a 60 s de transação | `COMPLETED` na 1ª tentativa; nenhum `NoSuchTransaction`; partições íntegras e publicadas |
 | `invalid-file` | Header com indicador `X` | `ERROR` sem retentativa; arquivo em `erros/`; nenhuma partição e nenhuma mensagem |
 | `kill-owner` | Uma partição fica parada por 300 s e o dono do lock recebe `docker kill` | A outra instância assume depois que o lock expira, marca a execução órfã como `FAILED` (`execution.recover`), refaz o particionamento e termina `COMPLETED` |
 
@@ -82,4 +83,4 @@ make status
 make start-all
 ```
 
-Pontos de falha: `VALIDATE`, `CLEANUP`, `PARTITION`, `MOVE`, `PUBLISH`. Ações: `FAIL` (lança exceção) e `DELAY` (dorme `DELAY` segundos).
+Pontos de falha: `VALIDATE`, `CLEANUP`, `PARTITION`, `REGISTER`, `MOVE`, `PUBLISH`. Ações: `FAIL` (lança exceção) e `DELAY` (dorme `DELAY` segundos).

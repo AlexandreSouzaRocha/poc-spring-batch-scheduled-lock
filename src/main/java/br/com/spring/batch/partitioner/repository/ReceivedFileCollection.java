@@ -43,8 +43,8 @@ public class ReceivedFileCollection {
         }
     }
 
-    public void save(ReceivedFileDocument document) {
-        mongoTemplate.save(document, NAME);
+    public void insertAll(List<ReceivedFileDocument> documents) {
+        mongoTemplate.insert(documents, NAME);
     }
 
     public Optional<ReceivedFileDocument> findById(String id) {

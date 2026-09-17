@@ -49,7 +49,8 @@ publish_fail() {
   check "status COMPLETED ($status)" "$([ "$status" = "COMPLETED" ] && echo true || echo false)"
   check "concluído na 2ª tentativa" "$(file_field "$id" "str(d['file']['execution']['attempts'] == 2).lower()")"
   check "cleanup pulado (particionamento já concluído)" "$([ "$(count_logs "$start" "partition.cleanup.*fileId=$id.*action=skip")" -ge 1 ] && echo true || echo false)"
-  check "partições gravadas uma única vez" "$([ "$(count_logs "$start" "partition.write.*fileId=$id")" -eq "$partitions" ] && echo true || echo false)"
+  check "partições enviadas ao blob uma única vez" "$([ "$(count_logs "$start" "partition.upload.*fileId=$id")" -eq "$partitions" ] && echo true || echo false)"
+  check "partições registradas no Mongo uma única vez" "$([ "$(count_logs "$start" "partition.register.*fileId=$id")" -eq 1 ] && echo true || echo false)"
   check "original movido uma única vez" "$([ "$(count_logs "$start" "original.move.*fileId=$id")" -eq 1 ] && echo true || echo false)"
   check "Kafka recebeu $partitions mensagens" "$([ $(( $(kafka_count) - kafka_before )) -eq "$partitions" ] && echo true || echo false)"
 }
@@ -77,6 +78,29 @@ kill_owner() {
   wait_healthy "$P1_URL" "$P2_URL"
 }
 
+slow_io_at() {
+  local point=$1 type=$2 start name id result
+  info "CENÁRIO slow-io ($point): I/O de 90s, acima do limite de 60s da transação do Mongo -> conclui na 1ª tentativa"
+  setup
+  start=$(now_utc)
+  chaos_on "point=$point&action=DELAY&onAttempt=1&delaySeconds=90"
+  name=$(generate_one "$type")
+  id=$(wait_file_registered "$name" 120)
+  result=$(wait_file_status "$id" "COMPLETED FAILED ERROR" 600)
+  chaos_off
+  check "status COMPLETED ($result)" "$([ "$result" = "COMPLETED" ] && echo true || echo false)"
+  check "concluído na 1ª tentativa" "$(file_field "$id" "str(d['file']['execution']['attempts'] == 1).lower()")"
+  check "atraso de 90s aplicado em $point" "$([ "$(count_logs "$start" "chaos.delay.*point=$point.*fileId=$id")" -ge 1 ] && echo true || echo false)"
+  check "nenhuma transação do Mongo abortada" "$([ "$(count_logs "$start" "NoSuchTransaction")" -eq 0 ] && echo true || echo false)"
+  check "partições íntegras e publicadas" "$(verification_field "$id" "d['allPartitionsValid']")"
+}
+
+slow_io() {
+  slow_io_at PARTITION ABERTO
+  slow_io_at MOVE FECHADO
+  slow_io_at PUBLISH SALDO
+}
+
 invalid_file() {
   info "CENÁRIO invalid-file: header inválido -> ERROR imediato, sem retentativa, arquivo em erros/"
   setup
@@ -97,7 +121,8 @@ case "$SCENARIO" in
   publish-fail) publish_fail ;;
   kill-owner) kill_owner ;;
   invalid-file) invalid_file ;;
-  all) partition_fail; publish_fail; invalid_file; kill_owner ;;
+  slow-io) slow_io ;;
+  all) partition_fail; publish_fail; invalid_file; slow_io; kill_owner ;;
   *) echo "cenário desconhecido: $SCENARIO"; exit 2 ;;
 esac
 

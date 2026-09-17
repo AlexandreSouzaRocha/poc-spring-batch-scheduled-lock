@@ -29,11 +29,11 @@ public record ReceivedFileDocument(
                 ExecutionInfo.notStarted(), AuditInfo.createdAt(now));
     }
 
-    public ReceivedFileDocument partition(PartitionRange range, WrittenBlob written, Instant now) {
-        return new ReceivedFileDocument(partitionId(range.index()), FileRole.PARTITION, id, written.fileName(),
-                FileStatus.CREATED, BlobLocation.written(blob.sourcePath(), written.path(), written.sizeBytes()),
+    public ReceivedFileDocument uploadedPartition(PartitionRange range, String fileName, String path, Instant now) {
+        return new ReceivedFileDocument(partitionId(range.index()), FileRole.PARTITION, id, fileName,
+                FileStatus.UPLOADED, BlobLocation.written(blob.sourcePath(), path, range.fileSizeBytes()),
                 movement, PartitioningInfo.ofPartition(range, partitioning.count()),
-                ExecutionInfo.written(execution, written.durationMs()), AuditInfo.createdAt(now));
+                ExecutionInfo.inheritedFrom(execution), AuditInfo.createdAt(now));
     }
 
     public String partitionId(int partitionIndex) {
@@ -82,8 +82,5 @@ public record ReceivedFileDocument(
 
     public int partitionCount() {
         return partitioning.count();
-    }
-
-    public record WrittenBlob(String fileName, String path, long sizeBytes, long durationMs) {
     }
 }

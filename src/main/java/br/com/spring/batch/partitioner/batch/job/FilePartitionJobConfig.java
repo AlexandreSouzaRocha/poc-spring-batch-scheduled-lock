@@ -9,6 +9,7 @@ import br.com.spring.batch.partitioner.batch.tasklet.CleanupPartitionsTasklet;
 import br.com.spring.batch.partitioner.batch.tasklet.MoveOriginalTasklet;
 import br.com.spring.batch.partitioner.batch.tasklet.PartitionWriterTasklet;
 import br.com.spring.batch.partitioner.batch.tasklet.PublishPartitionsTasklet;
+import br.com.spring.batch.partitioner.batch.tasklet.RegisterPartitionsTasklet;
 import br.com.spring.batch.partitioner.batch.tasklet.ValidateHeaderTasklet;
 import br.com.spring.batch.partitioner.config.properties.AppProperties.PartitionSettings;
 
@@ -22,11 +23,11 @@ import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.Step;
 import org.springframework.batch.core.step.builder.StepBuilder;
 import org.springframework.batch.core.step.tasklet.Tasklet;
+import org.springframework.batch.infrastructure.support.transaction.ResourcelessTransactionManager;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.task.TaskExecutor;
-import org.springframework.data.mongodb.MongoTransactionManager;
 
 @Configuration
 public class FilePartitionJobConfig {
@@ -34,10 +35,9 @@ public class FilePartitionJobConfig {
     private final JobRepository jobRepository;
     private final StepFactory stepFactory;
 
-    public FilePartitionJobConfig(JobRepository jobRepository, MongoTransactionManager transactionManager,
-                                  StepMetricsListener stepMetricsListener) {
+    public FilePartitionJobConfig(JobRepository jobRepository, StepMetricsListener stepMetricsListener) {
         this.jobRepository = jobRepository;
-        this.stepFactory = new StepFactory(jobRepository, transactionManager, stepMetricsListener);
+        this.stepFactory = new StepFactory(jobRepository, stepMetricsListener);
     }
 
     @Bean
@@ -74,6 +74,11 @@ public class FilePartitionJobConfig {
     }
 
     @Bean
+    public Step registerPartitionsStep(RegisterPartitionsTasklet tasklet) {
+        return stepFactory.tasklet(BatchNames.REGISTER_PARTITIONS_STEP, tasklet, false);
+    }
+
+    @Bean
     public Step moveOriginalStep(MoveOriginalTasklet tasklet) {
         return stepFactory.tasklet(BatchNames.MOVE_ORIGINAL_STEP, tasklet, false);
     }
@@ -85,12 +90,13 @@ public class FilePartitionJobConfig {
 
     @Bean
     public Job filePartitionJob(Step validateHeaderStep, Step cleanupPartitionsStep, Step partitionMasterStep,
-                                Step moveOriginalStep, Step publishPartitionsStep,
+                                Step registerPartitionsStep, Step moveOriginalStep, Step publishPartitionsStep,
                                 FileStatusJobListener fileStatusJobListener, JobMetricsListener jobMetricsListener) {
         return new JobBuilder(BatchNames.JOB_NAME, jobRepository)
                 .start(validateHeaderStep)
                 .next(cleanupPartitionsStep)
                 .next(partitionMasterStep)
+                .next(registerPartitionsStep)
                 .next(moveOriginalStep)
                 .next(publishPartitionsStep)
                 .listener(fileStatusJobListener)
@@ -114,12 +120,14 @@ public class FilePartitionJobConfig {
         return handler;
     }
 
-    private record StepFactory(JobRepository jobRepository, MongoTransactionManager transactionManager,
-                               StepMetricsListener metricsListener) {
+    private record StepFactory(JobRepository jobRepository, StepMetricsListener metricsListener) {
+
+        private static final ResourcelessTransactionManager WITHOUT_MONGO_TRANSACTION =
+                new ResourcelessTransactionManager();
 
         Step tasklet(String name, Tasklet tasklet, boolean runOnEveryAttempt) {
             return new StepBuilder(name, jobRepository)
-                    .tasklet(tasklet, transactionManager)
+                    .tasklet(tasklet, WITHOUT_MONGO_TRANSACTION)
                     .allowStartIfComplete(runOnEveryAttempt)
                     .listener(metricsListener)
                     .build();

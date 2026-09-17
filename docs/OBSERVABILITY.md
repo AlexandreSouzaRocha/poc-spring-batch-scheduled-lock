@@ -12,8 +12,8 @@ Toda linha da aplicação segue o mesmo formato:
 |---|---|---|
 | `request_id` | `part-1e646ce7/d303b501` | Correlação. Os ciclos do scheduler geram `poll-*` e `part-*`, cada arquivo do ciclo ganha um sufixo (`/<fileId>`) e o HTTP usa o header `X-Request-Id`. O valor é propagado para as virtual threads das partições |
 | `context` | `partition-job` | Área da aplicação: `scheduler`, `blob-polling`, `file-partitioning`, `partition-job`, `partition-recovery`, `metrics`, `generator`, `chaos`, `http` |
-| `operation` | `partition.write` | Operação que gerou o log |
-| `message` | `partição gravada no blob` | Texto para leitura humana |
+| `operation` | `partition.upload` | Operação que gerou o log |
+| `message` | `partição enviada ao blob` | Texto para leitura humana |
 | `campo=valor` | `fileId=... partitionIndex=4` | Campos para filtrar com `grep` |
 | JSON | `{"target":"...","byteRange":{...}}` | Dados complementares |
 

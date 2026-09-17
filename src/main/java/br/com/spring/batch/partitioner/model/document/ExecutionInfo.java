@@ -13,8 +13,8 @@ public record ExecutionInfo(
         return new ExecutionInfo(null, null, 0, null, null);
     }
 
-    public static ExecutionInfo written(ExecutionInfo originalExecution, long durationMs) {
+    public static ExecutionInfo inheritedFrom(ExecutionInfo originalExecution) {
         return new ExecutionInfo(originalExecution.jobInstanceId(), originalExecution.lastJobExecutionId(),
-                originalExecution.attempts(), null, durationMs);
+                originalExecution.attempts(), null, null);
     }
 }

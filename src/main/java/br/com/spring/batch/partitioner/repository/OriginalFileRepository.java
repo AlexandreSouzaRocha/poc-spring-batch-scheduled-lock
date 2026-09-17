@@ -30,7 +30,7 @@ import static org.springframework.data.mongodb.core.query.Query.query;
 @Repository
 public class OriginalFileRepository {
 
-    private static final List<FileStatus> PROCESSABLE = List.of(FileStatus.PENDING, FileStatus.PROCESSING,
+    private static final List<FileStatus> PROCESSABLE = List.of(FileStatus.PENDING, FileStatus.PARTITIONING,
             FileStatus.FAILED);
 
     private final ReceivedFileCollection collection;
@@ -84,7 +84,7 @@ public class OriginalFileRepository {
 
     public ReceivedFileDocument startAttempt(String id) {
         return collection.updateAndGet(id, new Update()
-                .set(ReceivedFileFields.STATUS, FileStatus.PROCESSING)
+                .set(ReceivedFileFields.STATUS, FileStatus.PARTITIONING)
                 .inc(execution(ReceivedFileFields.ATTEMPTS), 1));
     }
 

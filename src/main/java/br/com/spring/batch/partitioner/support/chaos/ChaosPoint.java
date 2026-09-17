@@ -4,6 +4,7 @@ public enum ChaosPoint {
     VALIDATE,
     CLEANUP,
     PARTITION,
+    REGISTER,
     MOVE,
     PUBLISH
 }

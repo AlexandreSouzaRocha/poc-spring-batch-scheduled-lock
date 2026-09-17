@@ -130,7 +130,7 @@ start-all: ## Sobe de novo containers parados/mortos
 e2e: ## Teste integrado: gera, aguarda e valida partições, blob, Kafka, lock e métricas. LINES FILES TYPE
 	./scripts/e2e.sh $(LINES) $(FILES) $(TYPE)
 
-chaos-test: ## Cenários de resume/recovery: SCENARIO=partition-fail|publish-fail|kill-owner|invalid-file|all
+chaos-test: ## Cenários de resume/recovery: SCENARIO=partition-fail|publish-fail|invalid-file|slow-io|kill-owner|all
 	./scripts/chaos-test.sh $(SCENARIO)
 
 clean: ## Limpa o build local

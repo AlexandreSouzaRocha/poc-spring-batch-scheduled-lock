@@ -33,6 +33,10 @@ public record PartitionRange(int index, long firstLine, long lineCount, ByteRang
         return context;
     }
 
+    public long fileSizeBytes() {
+        return FileLayout.HEADER_LINE_BYTES + bytes.length();
+    }
+
     public String stepName() {
         return "partition" + String.format("%04d", index);
     }

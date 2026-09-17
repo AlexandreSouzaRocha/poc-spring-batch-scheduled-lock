@@ -50,7 +50,7 @@ wait_healthy() {
 
 wait_idle() {
   until curl -fsS "$(partitioner_url)/files/summary" \
-      | python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(0 if not any(k in d for k in ("PENDING","PROCESSING","FAILED")) else 1)'; do
+      | python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(0 if not any(k in d for k in ("PENDING","PARTITIONING","FAILED")) else 1)'; do
     sleep 3
   done
 }
@@ -94,16 +94,16 @@ file_field() {
 }
 
 wait_file_status() {
-  local id=$1 statuses=$2 deadline=$((SECONDS + ${3:-900})) status=""
+  local id=$1 statuses=$2 deadline=$((SECONDS + ${3:-900})) current_status=""
   while [ $SECONDS -lt $deadline ]; do
-    status=$(file_field "$id" "d['file']['status']" 2>/dev/null || echo "")
-    if echo " $statuses " | grep -q " $status "; then
-      echo "$status"
+    current_status=$(file_field "$id" "d['file']['status']" 2>/dev/null || echo "")
+    if echo " $statuses " | grep -q " $current_status "; then
+      echo "$current_status"
       return
     fi
     sleep 3
   done
-  echo "TIMEOUT:$status"
+  echo "TIMEOUT:$current_status"
 }
 
 verification() {

@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 
 import br.com.spring.batch.partitioner.model.document.ReceivedFileDocument;
-import br.com.spring.batch.partitioner.model.document.ReceivedFileDocument.WrittenBlob;
 import br.com.spring.batch.partitioner.model.partition.PartitionRange;
 import br.com.spring.batch.partitioner.storage.BlobPaths;
 import br.com.spring.batch.partitioner.storage.BlobReader;
@@ -26,34 +25,32 @@ public class PartitionBlobWriter {
         this.paths = paths;
     }
 
-    public WrittenBlob write(ReceivedFileDocument original, PartitionRange range) {
+    public UploadedPartition upload(ReceivedFileDocument original, PartitionRange range) {
         String target = paths.partitionPath(original, range.index());
         long startNanos = System.nanoTime();
-        byte[] header = original.headerLineBytes();
-        long copiedBytes = transfer.copy(original.currentPath(), range, target, header);
-        long durationMs = (System.nanoTime() - startNanos) / NANOS_PER_MILLI;
-        return new WrittenBlob(paths.partitionFileName(original, range.index()), target, header.length + copiedBytes,
-                durationMs);
+        transfer.copy(original.currentPath(), range, target, original.headerLineBytes());
+        return new UploadedPartition(target, range.fileSizeBytes(), (System.nanoTime() - startNanos) / NANOS_PER_MILLI);
     }
 
-    private static void requireComplete(PartitionRange range, long copiedBytes) {
-        if (!range.bytes().isFullyCopied(copiedBytes)) {
-            throw new IllegalStateException("partição " + range.index() + " copiou " + copiedBytes
-                    + " bytes; esperado " + range.bytes().length());
-        }
+    public record UploadedPartition(String path, long sizeBytes, long durationMs) {
     }
 
     private record BlobTransfer(BlobReader reader, BlobWriter writer) {
 
-        long copy(String sourcePath, PartitionRange range, String targetPath, byte[] header) {
+        void copy(String sourcePath, PartitionRange range, String targetPath, byte[] header) {
             try (BlobUpload upload = writer.open(targetPath)) {
                 upload.output().write(header);
-                long copiedBytes = reader.copy(sourcePath, range.bytes(), upload.output());
-                requireComplete(range, copiedBytes);
+                requireComplete(range, reader.copy(sourcePath, range.bytes(), upload.output()));
                 upload.commit();
-                return copiedBytes;
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
+            }
+        }
+
+        private static void requireComplete(PartitionRange range, long copiedBytes) {
+            if (!range.bytes().isFullyCopied(copiedBytes)) {
+                throw new IllegalStateException("partição " + range.index() + " copiou " + copiedBytes
+                        + " bytes; esperado " + range.bytes().length());
             }
         }
     }
