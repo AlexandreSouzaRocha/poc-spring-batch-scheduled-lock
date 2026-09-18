@@ -4,8 +4,20 @@ GENERATOR_URL=${GENERATOR_URL:-http://localhost:8090}
 P1_URL=${P1_URL:-http://localhost:8081}
 P2_URL=${P2_URL:-http://localhost:8082}
 TOPIC=${TOPIC:-movimentos-particionados}
-PARTITIONERS=(partitioner-1 partitioner-2)
+PARTITIONER_INSTANCES=${PARTITIONER_INSTANCES:-2}
+PARTITIONERS=(partitioner-1)
+if [ "$PARTITIONER_INSTANCES" -gt 1 ]; then
+  PARTITIONERS+=(partitioner-2)
+fi
 FAILURES=0
+
+app_urls() {
+  if [ "$PARTITIONER_INSTANCES" -gt 1 ]; then
+    echo "$GENERATOR_URL $P1_URL $P2_URL"
+    return
+  fi
+  echo "$GENERATOR_URL $P1_URL"
+}
 
 now_utc() {
   date -u +%Y-%m-%dT%H:%M:%SZ
@@ -36,7 +48,10 @@ finish() {
 }
 
 partitioner_url() {
-  curl -fsS "$P1_URL/actuator/health" >/dev/null 2>&1 && echo "$P1_URL" && return
+  if curl -fsS "$P1_URL/actuator/health" >/dev/null 2>&1; then
+    echo "$P1_URL"
+    return
+  fi
   echo "$P2_URL"
 }
 
@@ -128,13 +143,13 @@ count_logs() {
 }
 
 chaos_on() {
-  for url in "$P1_URL" "$P2_URL"; do
+  for url in $(app_urls); do
     curl -fsS -X PUT "$url/chaos?$1" >/dev/null 2>&1 || true
   done
 }
 
 chaos_off() {
-  for url in "$P1_URL" "$P2_URL"; do
+  for url in $(app_urls); do
     curl -fsS -X DELETE "$url/chaos" >/dev/null 2>&1 || true
   done
 }

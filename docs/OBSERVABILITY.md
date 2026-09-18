@@ -69,6 +69,24 @@ O `durationMs` do `partitionMasterStep` é o **tempo de particionamento do arqui
 plano de partições até a última partição gravada. `lines` e `bytes` somam as partições.
 O `partitionWorkerStep:partitionNNNN` mostra o tempo de cada partição.
 
+### Progresso durante o particionamento
+
+Enquanto o `partitionMasterStep` roda — que em arquivos grandes leva minutos — saem duas linhas a
+cada `app.partition.progress-interval-seconds` (padrão 10 s, `0` desliga):
+
+```
+2026-09-18T19:44:49.670Z level=INFO logger=b.c.s.b.p.b.p.PartitionProgressReporter thread=virtual-159 request_id=cycle-286b5d0f-.../552b87d4-... context=partition-job operation=partition.progress.file fileId=552b87d4-... percent=13.39 bytes=2021654528 totalBytes=15100000000 mbPerSec=176.85 etaSec=71 msg="particionamento em andamento"
+2026-09-18T19:44:49.671Z level=INFO logger=b.c.s.b.p.b.p.PartitionProgressReporter thread=virtual-159 request_id=cycle-286b5d0f-.../552b87d4-... context=partition-job operation=partition.progress fileId=552b87d4-... partitionIndex=4 percent=13.89 bytes=209715200 totalBytes=1510000000 mbPerSec=18.35 etaSec=68 msg="partição em andamento"
+```
+
+| Operação | Escopo | Uso |
+|---|---|---|
+| `partition.progress` | uma partição | Mostra partições lentas ou travadas antes do fim do step |
+| `partition.progress.file` | o arquivo inteiro | Percentual e tempo restante do particionamento |
+
+Os campos `percent`, `mbPerSec` e `etaSec` são calculados desde o início de cada contador, então o
+`etaSec` reflete o ritmo médio da execução, não uma janela móvel.
+
 ### JOB_METRICS: uma linha por execução do job
 
 ```

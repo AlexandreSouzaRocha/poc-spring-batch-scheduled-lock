@@ -51,6 +51,7 @@ Métricas que importam:
 | 50MM | 7,03 GB | 50 s | 31,8 s | 226,7 | 32,5 s | 10 | 10 | 1694 MB | 181 GB | COMPLETED |
 | 100MM | 14,06 GB | 100 s | 100,3 s | 143,5 | 101,9 s | 10 | 10 | 1722 MB | 166 GB | COMPLETED |
 | 200MM | 28,13 GB | 347 s | 373,6 s | 77,1 | 375,4 s | 10 | 10 | 1779 MB | 136 GB | COMPLETED |
+| 250MM | 35,16 GB | 488 s | 484,5 s | 74,3 | 486,6 s | 10 | 10 | 1749 MB | 123 GB | COMPLETED |
 
 ## Execuções
 
@@ -192,3 +193,129 @@ Observações:
   proporção confirmam que o limite é do armazenamento local.
 * O consumo de memória segue estável (1.779 MB), sem relação com os 28 GB do arquivo.
 * Todos os steps fora do particionamento continuam na casa de milissegundos.
+
+### 250MM — 35,16 GB
+
+```bash
+RESULTS_FILE=benchmarks/load-test-250MM.md ./scripts/load-test.sh 250
+```
+
+Resultado em [benchmarks/load-test-250MM.md](../benchmarks/load-test-250MM.md).
+
+| Métrica | Valor |
+|---|---|
+| Linhas | 250.000.000 |
+| Bytes do original | 37.750.000.019 |
+| Geração no blob | 488 s (≈77 MB/s) |
+| `partitionMasterStep` | **484.453 ms** — 516.046 linhas/s, **74,31 MB/s** |
+| `filePartitionJob` | 486.565 ms — 73,99 MB/s |
+| Tentativas | 1 |
+| Mensagens no Kafka | 10 |
+| Pico de memória do container | 1.749 MB de 2 GB |
+| Disco livre mínimo | 123 GB |
+| Pico de CPU do Azurite | 330% |
+
+Observações:
+
+* O maior volume do teste passou na primeira tentativa, sem retentativa e sem erro de transação do
+  Mongo, com 70,3 GB ocupados no blob ao final (35,16 GB em `aberto/` e 35,16 GB em `processados/`).
+* **O throughput estabilizou:** 77,1 MB/s no 200MM contra 74,3 MB/s no 250MM. A queda forte acontece
+  entre 50MM e 200MM e depois encosta num piso, que é a capacidade do Azurite local.
+* O pico de memória (1.749 MB) é praticamente o mesmo do 50MM (1.694 MB), com um arquivo 5 vezes
+  maior. O particionamento não carrega o arquivo em memória em nenhum momento.
+
+## Conclusões da bateria de baseline
+
+| Volume | Arquivo | Particionamento | MB/s | Linhas/s | Pico mem |
+|---|---|---|---|---|---|
+| 50MM | 7,03 GB | 31,8 s | 226,7 | 1.574.258 | 1.694 MB |
+| 100MM | 14,06 GB | 100,3 s | 143,5 | 996.741 | 1.722 MB |
+| 200MM | 28,13 GB | 373,6 s | 77,1 | 535.381 | 1.779 MB |
+| 250MM | 35,16 GB | 484,5 s | 74,3 | 516.046 | 1.749 MB |
+
+1. **Todos os volumes completam na primeira tentativa**, com 10 partições íntegras, 10 mensagens no
+   Kafka e o original movido para `processados/`. Nenhum erro de transação do Mongo mesmo com o
+   particionamento levando 8 minutos, porque nenhum I/O acontece dentro de transação.
+2. **A memória não acompanha o volume.** De 7 GB para 35 GB de arquivo, o pico variou 3%. O consumo
+   vem dos buffers de upload, não do tamanho do arquivo.
+3. **O throughput cai até ~75 MB/s e estabiliza.** O limite é o Azurite: 330–356% de CPU no
+   emulador contra 124% de 200% no particionador, e a geração de massa — caminho de código
+   independente — degradou na mesma proporção (151 → 77 MB/s).
+4. **O tempo fora do particionamento é constante e irrelevante:** validação, cleanup, registro no
+   Mongo, move e publicação somam menos de 2 s em qualquer volume, porque o move é server-side no
+   blob e o registro no Mongo é uma transação curta.
+
+## Segunda bateria: paralelismo por partição
+
+Depois do baseline, três mudanças entraram juntas: **4 threads por partição**, **ambiente com mais
+folga** (4 GB e 4 CPUs no partitioner, uma única instância) e **Azurite com `UV_THREADPOOL_SIZE=16`**
+no lugar do padrão 4 do Node.
+
+```bash
+PARTITION_COUNT=10 PARTITION_THREADS=4 PARTITIONER_MEMORY=4g PARTITIONER_CPUS=4 \
+  PARTITIONER_INSTANCES=1 AZURITE_THREADS=16 \
+  RESULTS_FILE=benchmarks/load-test-10x4.md ./scripts/load-test.sh 50 100 200 250
+```
+
+| Volume | Baseline 10×1, 2 GB | 10×4, 4 GB, solo | Tempo | Throughput |
+|---|---|---|---|---|
+| 50MM | 31,8 s · 226,7 MB/s | 36,0 s · 199,9 MB/s | +13% | −12% |
+| 100MM | 100,3 s · 143,5 MB/s | 69,1 s · 208,4 MB/s | **−31%** | +45% |
+| 200MM | 373,6 s · 77,1 MB/s | 135,7 s · 212,3 MB/s | **−64%** | +175% |
+| 250MM | 484,5 s · 74,3 MB/s | 157,3 s · 228,9 MB/s | **−68%** | +208% |
+
+**A degradação por volume desapareceu.** O baseline perdia metade do throughput a cada dobra de
+volume (226,7 → 143,5 → 77,1 → 74,3 MB/s); a configuração nova se mantém entre 200 e 229 MB/s, com
+o *maior* throughput no *maior* arquivo. A queda anterior era sintoma de I/O sequencial esperando
+latência, não de falta de banda.
+
+Em 50MM a configuração nova é mais lenta: o arquivo é pequeno o bastante para o Azurite responder
+de cache, e as 40 conexões simultâneas só adicionam disputa. O paralelismo interno paga a partir de
+100MM.
+
+O gargalo trocou de lado: no baseline o Azurite ficava em 356% de CPU contra 124% (de 200%) do
+partitioner; com 4 subthreads o partitioner chega a 352% (de 400%) e o Azurite fica em 242–247%.
+
+### Controle: separando ambiente de paralelismo
+
+Como três variáveis mudaram juntas, uma terceira execução isolou o efeito, mantendo o ambiente novo
+e voltando para 1 thread por partição:
+
+```bash
+PARTITION_COUNT=10 PARTITION_THREADS=1 PARTITIONER_MEMORY=4g PARTITIONER_CPUS=4 \
+  PARTITIONER_INSTANCES=1 AZURITE_THREADS=16 \
+  RESULTS_FILE=benchmarks/load-test-10x1-controle.md ./scripts/load-test.sh 100 250
+```
+
+| Config (100MM) | Tempo | MB/s | Pico mem | Ganho |
+|---|---|---|---|---|
+| Baseline: 2 GB, 2 instâncias, Azurite com 4 threads de I/O | 100,3 s | 143,5 | 1.722 MB | — |
+| Ambiente novo, ainda 10×1 | 77,2 s | 186,5 | 1.804 MB | +30% (ambiente) |
+| Ambiente novo + 4 subthreads | 69,1 s | 208,4 | 3.288 MB | +12% (paralelismo) |
+
+| Config (250MM) | Tempo | MB/s | Ganho acumulado |
+|---|---|---|---|
+| Baseline: 2 GB, 2 instâncias, Azurite com 4 threads de I/O | 484,5 s | 74,3 | — |
+| Ambiente novo, ainda 10×1 | 199,9 s | 180,1 | 2,42× |
+| Ambiente novo + 4 subthreads | 157,3 s | 228,9 | **3,08×** |
+
+No 100MM, dois terços do ganho vêm do ambiente — sobretudo do threadpool do Azurite — e um terço das
+subthreads. No 250MM as subthreads pesam mais: **+27%** sobre o ambiente já ajustado, contra +12% no
+100MM. Quanto maior o arquivo, mais o paralelismo interno rende, que é o comportamento esperado de
+um processo limitado por latência de I/O.
+
+O custo do paralelismo é memória: 3.288 MB contra 1.804 MB no 100MM, porque são
+`partições × threads × bloco` buffers simultâneos. Os 4 GB de container só são necessários por causa
+dele.
+
+### O que levar para produção
+
+| Ajuste | Ganho medido | Custo |
+|---|---|---|
+| `UV_THREADPOOL_SIZE` do Azurite (4 → 16) | grande parte do 2,42× | nenhum — só vale para o emulador local |
+| `app.partition.threads-per-partition` = 4 | +27% no 250MM, +12% no 100MM | memória: `partições × threads × bloco` |
+| Container com 4 GB | viabiliza o item acima | — |
+
+O `UV_THREADPOOL_SIZE` é uma característica do **Azurite**, não do Azure Storage: em produção esse
+gargalo não existe, então o ganho equivalente deve vir de graça. Já as subthreads valem em qualquer
+backend, e tendem a render mais contra o Azure real, que distribui a carga entre vários nós.

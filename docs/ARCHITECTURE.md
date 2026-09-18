@@ -31,6 +31,30 @@ O particionamento consome a `received_file_management`, não o blob. Assim, um a
 de `entrada/` (movido para `processados/` antes de uma falha na publicação) continua recuperável,
 e uma execução órfã de uma instância que morreu é retomada no ciclo seguinte.
 
+## Paralelismo do particionamento
+
+São dois níveis, ambos com virtual threads:
+
+1. **Entre partições:** o `partitionMasterStep` distribui as N partições (`app.partition.count`) em
+   virtual threads, uma por partição.
+2. **Dentro de cada partição:** cada partição divide sua faixa de bytes em
+   `app.partition.threads-per-partition` trechos alinhados ao bloco de upload, e cada trecho é lido
+   e enviado por uma virtual thread.
+
+O segundo nível é seguro porque o Azure Blob monta o arquivo por *block list*: cada bloco é enviado
+com um identificador próprio e a ordem final do arquivo é a do `commitBlockList`, não a ordem em que
+os blocos chegaram. O `PartitionTransfer` calcula os índices de bloco de forma determinística — o
+bloco 0 é o header e cada trecho conhece o índice do seu primeiro bloco — e só então faz o commit.
+O arquivo resultante é idêntico ao do caminho sequencial, o que `PartitionTransferTest` verifica com
+1, 2, 4 e 8 threads.
+
+Como nenhum bloco é visível antes do commit, uma falha em qualquer trecho continua deixando o blob
+inexistente, preservando a atomicidade por partição.
+
+**Memória:** o custo é `partições × threads × app.blob.upload-block-size-mb`. Com 10 partições, 4
+threads e blocos de 8 MB são 320 MB de buffers simultâneos, que precisam caber no limite do
+container.
+
 ## Job de particionamento
 
 ```mermaid

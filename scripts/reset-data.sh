@@ -9,9 +9,12 @@ info "removendo cache de build e imagens orfas deste projeto"
 docker builder prune -f >/dev/null
 docker image prune -f >/dev/null
 
-info "subindo a stack novamente (inits recriam collections, indices, topico e container)"
-docker compose up -d --wait
+info "subindo a stack novamente com $PARTITIONER_INSTANCES particionador(es)"
+docker compose up -d --wait kafka kafka-ui mongo azurite generator partitioner-1
+if [ "$PARTITIONER_INSTANCES" -gt 1 ]; then
+  docker compose up -d --wait partitioner-2
+fi
 
-wait_healthy "$GENERATOR_URL" "$P1_URL" "$P2_URL"
+wait_healthy $(app_urls)
 info "ambiente limpo e pronto"
 disk_free_report

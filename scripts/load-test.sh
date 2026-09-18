@@ -41,10 +41,15 @@ stop_sampler() {
   SAMPLER_PID=""
 }
 
+sampled_containers() {
+  printf 'psl-%s ' "${PARTITIONERS[@]}"
+  echo "psl-azurite"
+}
+
 sample_resources() {
   local tick=0
   while true; do
-    docker stats --no-stream --format '{{.Name}} {{.MemUsage}} {{.CPUPerc}}' psl-partitioner-1 psl-partitioner-2 psl-azurite \
+    docker stats --no-stream --format '{{.Name}} {{.MemUsage}} {{.CPUPerc}}' $(sampled_containers) \
       2>/dev/null >> "$SAMPLE_FILE" || true
     tick=$((tick + 1))
     if [ "$tick" -eq 1 ] || [ $((tick % 4)) -eq 0 ]; then
@@ -55,12 +60,14 @@ sample_resources() {
 }
 
 peak_memory_mb() {
-  grep -E '^psl-partitioner' "$SAMPLE_FILE" | awk '{print $2}' | python3 "$(dirname "$0")/peak-memory.py"
+  { grep -E '^psl-partitioner' "$SAMPLE_FILE" || true; } | awk '{print $2}' \
+    | python3 "$(dirname "$0")/peak-memory.py"
 }
 
 peak_cpu_percent() {
-  local container=$1
-  grep -E "^$container " "$SAMPLE_FILE" | awk '{print $5}' | tr -d '%' | sort -n | tail -1
+  local container=$1 peak
+  peak=$({ grep -E "^$container " "$SAMPLE_FILE" || true; } | awk '{print $5}' | tr -d '%' | sort -n | tail -1)
+  echo "${peak:--}"
 }
 
 save_details() {
@@ -75,7 +82,9 @@ save_details() {
 }
 
 min_free_disk_gb() {
-  grep '^disk ' "$SAMPLE_FILE" | awk '{print $2}' | sort -n | head -1
+  local minimum
+  minimum=$({ grep '^disk ' "$SAMPLE_FILE" || true; } | awk '{print $2}' | sort -n | head -1)
+  echo "${minimum:--}"
 }
 
 metric_field() {
@@ -145,7 +154,7 @@ collect_result() {
   kafka_delta=$(($(kafka_count) - kafka_before))
 
   save_details "$start" "$id" "$size"
-  info "resultado ${size}MM: status=$status  cpu_azurite_pico=$(peak_cpu_percent psl-azurite || echo -)%"
+  info "resultado ${size}MM: status=$status  cpu_azurite=$(peak_cpu_percent psl-azurite)%  cpu_partitioner=$(peak_cpu_percent psl-partitioner-1)%"
   print_metrics "$start" "$id"
   blob_usage || true
 
@@ -153,7 +162,7 @@ collect_result() {
     "$(metric_field "$step" durationMs)" "$(metric_field "$step" mbPerSec)" "$(metric_field "$step" linesPerSec)" \
     "$(metric_field "$job" durationMs)" "$(metric_field "$job" mbPerSec)" \
     "${partitions:--}" "${PARTITION_THREADS:-1}" "${attempts:--}" "$kafka_delta" \
-    "$(peak_memory_mb || echo -)" "$(min_free_disk_gb || echo -)" "$status"
+    "$(peak_memory_mb)" "$(min_free_disk_gb)" "$status"
 }
 
 record_row() {
@@ -166,7 +175,7 @@ reset_environment() {
   fi
   info "limpando ambiente (volumes do azurite e do mongo)"
   "$(dirname "$0")/reset-data.sh" >/dev/null
-  wait_healthy "$GENERATOR_URL" "$P1_URL" "$P2_URL"
+  wait_healthy $(app_urls)
 }
 
 write_header() {
@@ -177,7 +186,7 @@ write_header() {
   {
     echo "# Teste de carga — $(date +'%Y-%m-%d %H:%M')"
     echo
-    echo "Particoes: ${PARTITION_COUNT:-10} · OTEL: ${OTEL_ENABLED:-true} · memoria do container: ${PARTITIONER_MEMORY:-2g} · CPUs: ${PARTITIONER_CPUS:-2}"
+    echo "Particoes: ${PARTITION_COUNT:-10} · threads/particao: ${PARTITION_THREADS:-1} · instancias: ${PARTITIONER_INSTANCES:-2} · memoria: ${PARTITIONER_MEMORY:-2g} · CPUs: ${PARTITIONER_CPUS:-2} · azurite threads: ${AZURITE_THREADS:-16} · OTEL: ${OTEL_ENABLED:-true}"
     echo
     echo "| tamanho | linhas | arquivo GB | geracao s | particao ms | particao MB/s | linhas/s | job ms | job MB/s | particoes | threads | tentativas | kafka | pico mem MB | disco livre min GB | status |"
     echo "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"
@@ -185,7 +194,7 @@ write_header() {
 }
 
 main() {
-  wait_healthy "$GENERATOR_URL" "$P1_URL" "$P2_URL"
+  wait_healthy $(app_urls)
   write_header
   disk_free_report
   for size in $SIZES; do

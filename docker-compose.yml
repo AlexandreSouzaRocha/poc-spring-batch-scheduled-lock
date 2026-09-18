@@ -143,6 +143,13 @@ services:
     command: ["azurite-blob", "--blobHost", "0.0.0.0", "--blobPort", "10000", "--skipApiVersionCheck", "--disableProductStyleUrl", "--location", "/data"]
     ports:
       - "10000:10000"
+    environment:
+      UV_THREADPOOL_SIZE: ${AZURITE_THREADS:-16}
+    deploy:
+      resources:
+        limits:
+          cpus: "${AZURITE_CPUS:-8}"
+          memory: ${AZURITE_MEMORY:-8g}
     volumes:
       - azurite-data:/data
     healthcheck:
