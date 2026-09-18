@@ -1,0 +1,106 @@
+# Resultados brutos dos benchmarks
+
+Todas as execuções de carga da POC, em ordem cronológica de bateria. A análise e as conclusões
+estão em [docs/LOAD-TESTS.md](../docs/LOAD-TESTS.md); aqui ficam apenas os números medidos.
+
+Ambiente comum a tudo: Apple Silicon, Docker Desktop com 12 CPUs e 36 GB, Azurite como blob,
+MongoDB com `transactionLifetimeLimitSeconds=60`, arquivo de 151 bytes por linha.
+
+**Leia a coluna "confiança" antes de comparar duas linhas.** Réplicas da mesma configuração
+variaram até 31% nesta sessão (ver [Confiabilidade](#confiabilidade) no final).
+
+## Bateria 1 — baseline
+
+10 partições, 1 thread por partição, 2 instâncias, 2 GB, 2 vCPUs, ParallelGC, OTEL on,
+`UV_THREADPOOL_SIZE` padrão do Node (4).
+
+| Volume | Geração | Particionamento | MB/s | Pico mem | Confiança |
+|---|---|---|---|---|---|
+| 50MM | 50 s | 31.761 ms | 226,70 | 1.694 MB | alta |
+| 100MM | 100 s | 100.327 ms | 143,54 | 1.722 MB | alta |
+| 200MM | 347 s | 373.566 ms | 77,10 | 1.779 MB | alta |
+| 250MM | 488 s | 484.453 ms | 74,31 | 1.749 MB | alta |
+
+## Bateria 2 — paralelismo por partição
+
+10 partições, **4 threads por partição**, 1 instância, 4 GB, 4 vCPUs, ParallelGC, OTEL on,
+`UV_THREADPOOL_SIZE=16`.
+
+| Volume | Geração | Particionamento | MB/s | Confiança |
+|---|---|---|---|---|
+| 50MM | 67 s | 36.019 ms | 199,90 | alta |
+| 100MM | 108 s | 69.091 ms | 208,43 | alta |
+| 200MM | 211 s | 135.690 ms | 212,26 | alta |
+| 250MM | 258 s | 157.296 ms | 228,88 | alta |
+
+## Bateria 3 — controle: ambiente novo com 1 thread
+
+Igual à bateria 2, mas com **1 thread por partição**. Isola o ganho do ambiente do ganho do
+paralelismo interno.
+
+| Volume | Geração | Particionamento | MB/s | Pico mem | Confiança |
+|---|---|---|---|---|---|
+| 100MM | 106 s | 77.218 ms | 186,49 | 1.804 MB | alta |
+| 250MM | 263 s | 199.920 ms | 180,08 | 2.865 MB | alta |
+
+## Bateria 4 — tuning em 250MM
+
+Base: 10 partições × 4 threads, 1 instância, 4 GB, 4 vCPUs, `UV_THREADPOOL_SIZE=16`,
+Azurite 3.35 e `StreamingPartitionCopy`, salvo indicação contrária.
+
+| Execução | GC | Bloco | Partições | OTEL | Geração | Particionamento | MB/s | Confiança |
+|---|---|---|---|---|---|---|---|---|
+| `otel-off` | Parallel | 8 MB | 10 | **off** | 247 s | 143.446 ms | 250,97 | baixa |
+| `g1` | **G1** | 8 MB | 10 | on | 246 s | 145.957 ms | 246,66 | baixa |
+| `a335-otel-on-parallel-limpo` | Parallel | 8 MB | 10 | on | 340 s | 150.650 ms | 238,97 | baixa |
+| `b10-block16-g1` | **G1** | **16 MB** | 10 | on | 244 s | 161.039 ms | 223,56 | baixa |
+| `b10-block16-parallel` | Parallel | **16 MB** | 10 | on | 250 s | 170.332 ms | 211,36 | baixa |
+| `p15-block16` | Parallel | **16 MB** | **15** | on | 260 s | 176.388 ms | 204,10 | baixa |
+| `b10-block8-g1-r2` | **G1** | 8 MB | 10 | on | 286 s | 190.958 ms | 188,53 | baixa |
+| `p15` | Parallel | 8 MB | **15** | on | 253 s | 208.641 ms | 172,55 | baixa |
+
+As duas linhas `g1` e `b10-block8-g1-r2` são **a mesma configuração**: 145.957 ms e 190.958 ms,
+31% de diferença. É essa dispersão que rebaixa a confiança de toda a bateria 4.
+
+### Execuções descartadas
+
+| Execução | Particionamento | Motivo |
+|---|---|---|
+| `a335-otel-on-parallel` | 2.069.724 ms | Ambiente degradado; a mesma config mediu 150.650 ms depois da limpeza |
+| `otel-on-parallel` (Azurite 3.37) | 441.054 ms | Mesmo período de degradação; não serve para comparar versões do Azurite |
+
+## Perfis de GC
+
+Medidos a partir do `gc.log` de cada execução, com `scripts/gc-stats.py`. Diferente dos tempos
+acima, estes números medem o fenômeno diretamente e **não dependem de comparar execuções**.
+
+| Execução | GC | Bloco | Partições | Pausas | Total STW | Full GCs | Máx |
+|---|---|---|---|---|---|---|---|
+| `b10-block16-g1` | **G1** | 16 MB | 10 | 686 | **4.252 ms** | **8** | 79,4 ms |
+| `b10-block8-g1-r2` | **G1** | 8 MB | 10 | 620 | 4.655 ms | **3** | 108,0 ms |
+| `b10-block16-parallel` | Parallel | 16 MB | 10 | 432 | 8.123 ms | 67 | 144,6 ms |
+| `p15` | Parallel | 8 MB | 15 | 484 | 15.296 ms | 89 | 440,1 ms |
+| `p15-block16` | Parallel | 16 MB | 15 | 248 | 15.758 ms | **244** | 166,4 ms |
+
+Comparando as duas execuções de configuração idêntica exceto pelo coletor
+(`b10-block16-g1` e `b10-block16-parallel`): o G1 reduz o stop-the-world de 8.123 ms para
+4.252 ms e os Full GCs de 67 para 8.
+
+Os logs brutos estão em [`gc/`](gc/).
+
+## Confiabilidade
+
+Três fatores comprometeram a precisão das medições desta sessão:
+
+1. **Dispersão entre réplicas de até 31%** na mesma configuração. Qualquer diferença menor que
+   isso — como os 3–5% entre coletores ou os 13% entre tamanhos de bloco — não está estabelecida
+   pelos tempos medidos.
+2. **Degradação progressiva ao longo da sessão**, com duas explicações candidatas que não foi
+   possível separar: pressão de disco no host (o `Docker.raw` chegou a 113 GB) e restrição de
+   desempenho do Mac em bateria (chegou a 27%, embora sem Low Power Mode ativo).
+3. **O Azurite é o gargalo**, não a aplicação: durante o particionamento ele chega a 260% de CPU
+   enquanto o partitioner fica abaixo de 150% do seu limite de 400%.
+
+Por isso, as execuções passaram a registrar o estado de energia do host, e conclusões só são
+tiradas de efeitos muito maiores que a dispersão — como o 3,08× da bateria 2 sobre a 1 — ou de
+medições diretas, como os perfis de GC.
