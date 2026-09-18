@@ -6,7 +6,7 @@ SCENARIO=${1:-all}
 LINES=${LINES:-200000}
 
 setup() {
-  wait_healthy "$GENERATOR_URL" "$P1_URL" "$P2_URL"
+  wait_healthy $(app_urls)
   chaos_off
   wait_idle
 }
@@ -75,7 +75,7 @@ kill_owner() {
   check "partições íntegras" "$(verification_field "$id" "d['allPartitionsValid']")"
   info "religando $owner"
   docker start "psl-$owner" >/dev/null
-  wait_healthy "$P1_URL" "$P2_URL"
+  wait_healthy $(app_urls)
 }
 
 slow_io_at() {

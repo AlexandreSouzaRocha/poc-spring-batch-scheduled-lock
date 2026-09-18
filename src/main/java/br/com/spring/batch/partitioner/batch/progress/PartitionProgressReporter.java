@@ -32,16 +32,7 @@ public class PartitionProgressReporter {
     }
 
     private void advanceFile(String fileId, long executionId, long bytes) {
-        ProgressCounter file = fileCounter(fileId, executionId);
-        file.advance(bytes);
-        removeWhenComplete(fileId, executionId, file);
-    }
-
-    private void removeWhenComplete(String fileId, long executionId, ProgressCounter file) {
-        if (!file.isComplete()) {
-            return;
-        }
-        finish(fileId, executionId);
+        fileCounter(fileId, executionId).advance(bytes);
     }
 
     private ProgressCounter fileCounter(String fileId, long executionId) {

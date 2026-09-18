@@ -319,3 +319,31 @@ dele.
 O `UV_THREADPOOL_SIZE` é uma característica do **Azurite**, não do Azure Storage: em produção esse
 gargalo não existe, então o ganho equivalente deve vir de graça. Já as subthreads valem em qualquer
 backend, e tendem a render mais contra o Azure real, que distribui a carga entre vários nós.
+
+## Incidente: degradação do ambiente entre baterias
+
+Durante a sessão de tuning, a mesma configuração que havia medido 157,3 s passou a medir
+**2.069,7 s** — 13 vezes mais lenta. A investigação descartou o código e isolou o ambiente:
+
+| Evidência | Conclusão |
+|---|---|
+| `git diff` da refatoração | Apenas nome de classe, `@Override` e a interface; nenhuma mudança funcional |
+| CPU do partitioner em 80% de 400% e do Azurite em 230% | Ninguém processando: todos esperando I/O |
+| Geração (escrita sequencial) normal em 255 s | O problema é leitura concorrente, não escrita |
+| `Docker.raw` em 113 GB, host com 106 GB livres | Pressão de disco acumulada por ~500 GB escritos e apagados na sessão |
+| Após `docker compose down -v` + prune: `Docker.raw` em 52 GB, host com 166 GB | Ambiente recuperado |
+| Nova medição da mesma configuração | **150,7 s** — desempenho integralmente restaurado |
+
+Duas lições operacionais:
+
+1. **O tempo de geração não é um controle confiável do ambiente.** Houve uma execução com geração
+   normal (255 s) e particionamento catastrófico (2.069 s). Escrita sequencial e leitura concorrente
+   degradam de forma independente.
+2. **Toda medição precisa começar de disco recuperado.** O `down -v` que o `reset-data.sh` faz entre
+   execuções não impediu o acúmulo ao longo da sessão; foi preciso `down -v` com prune e verificar o
+   espaço livre no host antes de confiar em um número.
+
+Uma comparação ficou comprometida por esse efeito: a execução do Azurite 3.37 aconteceu com o disco
+já degradado, então **a diferença de desempenho entre as versões 3.35 e 3.37 não está estabelecida**
+por esses dados. Por isso a fase 2 compara streaming e cópia server-side **dentro** da 3.37, onde o
+delta mede a técnica de cópia e não a versão do emulador.

@@ -171,6 +171,7 @@ record_row() {
 
 reset_environment() {
   if [ "$KEEP_DATA" = "true" ]; then
+    wait_healthy $(app_urls)
     return 0
   fi
   info "limpando ambiente (volumes do azurite e do mongo)"
@@ -194,7 +195,6 @@ write_header() {
 }
 
 main() {
-  wait_healthy $(app_urls)
   write_header
   disk_free_report
   for size in $SIZES; do

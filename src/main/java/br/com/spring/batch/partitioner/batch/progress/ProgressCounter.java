@@ -33,10 +33,6 @@ public final class ProgressCounter {
         totalBytes.addAndGet(bytes);
     }
 
-    boolean isComplete() {
-        return copiedBytes.get() >= totalBytes.get();
-    }
-
     ProgressSnapshot snapshot() {
         return new ProgressSnapshot(copiedBytes.get(), totalBytes.get(),
                 (System.nanoTime() - startNanos) / NANOS_PER_MILLI);

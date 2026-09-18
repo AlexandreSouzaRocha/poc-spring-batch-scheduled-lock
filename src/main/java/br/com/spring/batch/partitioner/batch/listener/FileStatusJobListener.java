@@ -3,6 +3,7 @@ package br.com.spring.batch.partitioner.batch.listener;
 import br.com.spring.batch.partitioner.batch.job.FileJobParameters;
 import br.com.spring.batch.partitioner.batch.metrics.StepVolume;
 import br.com.spring.batch.partitioner.batch.metrics.Throughput;
+import br.com.spring.batch.partitioner.batch.progress.PartitionProgressReporter;
 import br.com.spring.batch.partitioner.service.FileStatusService;
 import br.com.spring.batch.partitioner.support.log.ErrorSummary;
 
@@ -15,9 +16,11 @@ import org.springframework.stereotype.Component;
 public class FileStatusJobListener implements JobExecutionListener {
 
     private final FileStatusService statusService;
+    private final PartitionProgressReporter progressReporter;
 
-    public FileStatusJobListener(FileStatusService statusService) {
+    public FileStatusJobListener(FileStatusService statusService, PartitionProgressReporter progressReporter) {
         this.statusService = statusService;
+        this.progressReporter = progressReporter;
     }
 
     @Override
@@ -29,6 +32,7 @@ public class FileStatusJobListener implements JobExecutionListener {
     @Override
     public void afterJob(JobExecution jobExecution) {
         String fileId = FileJobParameters.fileIdOf(jobExecution);
+        progressReporter.finish(fileId, jobExecution.getId());
         if (jobExecution.getStatus() == BatchStatus.COMPLETED) {
             statusService.completed(fileId, durationMs(jobExecution));
             return;

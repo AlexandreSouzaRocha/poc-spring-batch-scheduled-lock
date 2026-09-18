@@ -9,7 +9,7 @@ FOLDER=$(echo "$TYPE" | tr '[:upper:]' '[:lower:]')
 TIMEOUT_SECONDS=${TIMEOUT_SECONDS:-900}
 
 info "aguardando generator e particionadores ficarem saudáveis"
-wait_healthy "$GENERATOR_URL" "$P1_URL" "$P2_URL"
+wait_healthy $(app_urls)
 chaos_off
 wait_idle
 
