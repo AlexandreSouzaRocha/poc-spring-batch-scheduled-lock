@@ -1,0 +1,354 @@
+== 200MM fileId=9fed7e1f-2550-3cf7-a4a9-7c5bfa30070d
+partitioner-1 2026-09-18T19:13:33.535Z level=INFO logger=b.c.s.b.p.b.listener.StepMetricsListener thread=virtual-174 request_id=cycle-a1f41423-d768-46bb-b24b-4b04ff05b6b0/9fed7e1f-2550-3cf7-a4a9-7c5bfa30070d trace_id=1440e7da85e9d2d3424b7d668fe24bcb span_id=045e6a0e470bbead context=metrics operation=step.metrics step=validateHeaderStep fileId=9fed7e1f-2550-3cf7-a4a9-7c5bfa30070d jobExecutionId=1 status=COMPLETED durationMs=225 lines=200000000 bytes=0 linesPerSec=888888889 mbPerSec=0.00 msg="STEP_METRICS" data={"stepExecutionId":1,"failures":[]}
+partitioner-1 2026-09-18T19:13:33.688Z level=INFO logger=b.c.s.b.p.b.listener.StepMetricsListener thread=virtual-174 request_id=cycle-a1f41423-d768-46bb-b24b-4b04ff05b6b0/9fed7e1f-2550-3cf7-a4a9-7c5bfa30070d trace_id=1440e7da85e9d2d3424b7d668fe24bcb span_id=045e6a0e470bbead context=metrics operation=step.metrics step=cleanupPartitionsStep fileId=9fed7e1f-2550-3cf7-a4a9-7c5bfa30070d jobExecutionId=1 status=COMPLETED durationMs=117 lines=0 bytes=0 linesPerSec=0 mbPerSec=0.00 msg="STEP_METRICS" data={"stepExecutionId":2,"failures":[]}
+partitioner-1 2026-09-18T19:19:21.552Z level=INFO logger=b.c.s.b.p.b.listener.StepMetricsListener thread=virtual-184 request_id=cycle-a1f41423-d768-46bb-b24b-4b04ff05b6b0/9fed7e1f-2550-3cf7-a4a9-7c5bfa30070d trace_id=1440e7da85e9d2d3424b7d668fe24bcb span_id=045e6a0e470bbead context=metrics operation=step.metrics step=partitionWorkerStep:partition0002 fileId=9fed7e1f-2550-3cf7-a4a9-7c5bfa30070d jobExecutionId=1 status=COMPLETED durationMs=347485 lines=20000000 bytes=3020000019 linesPerSec=57556 mbPerSec=8.29 msg="STEP_METRICS" data={"stepExecutionId":5,"failures":[]}
+partitioner-1 2026-09-18T19:19:21.552Z level=INFO logger=b.c.s.b.p.b.listener.StepMetricsListener thread=virtual-188 request_id=cycle-a1f41423-d768-46bb-b24b-4b04ff05b6b0/9fed7e1f-2550-3cf7-a4a9-7c5bfa30070d trace_id=1440e7da85e9d2d3424b7d668fe24bcb span_id=045e6a0e470bbead context=metrics operation=step.metrics step=partitionWorkerStep:partition0001 fileId=9fed7e1f-2550-3cf7-a4a9-7c5bfa30070d jobExecutionId=1 status=COMPLETED durationMs=347482 lines=20000000 bytes=3020000019 linesPerSec=57557 mbPerSec=8.29 msg="STEP_METRICS" data={"stepExecutionId":4,"failures":[]}
+partitioner-1 2026-09-18T19:19:26.548Z level=INFO logger=b.c.s.b.p.b.listener.StepMetricsListener thread=virtual-191 request_id=cycle-a1f41423-d768-46bb-b24b-4b04ff05b6b0/9fed7e1f-2550-3cf7-a4a9-7c5bfa30070d trace_id=1440e7da85e9d2d3424b7d668fe24bcb span_id=045e6a0e470bbead context=metrics operation=step.metrics step=partitionWorkerStep:partition0003 fileId=9fed7e1f-2550-3cf7-a4a9-7c5bfa30070d jobExecutionId=1 status=COMPLETED durationMs=352568 lines=20000000 bytes=3020000019 linesPerSec=56727 mbPerSec=8.17 msg="STEP_METRICS" data={"stepExecutionId":6,"failures":[]}
+partitioner-1 2026-09-18T19:19:34.318Z level=INFO logger=b.c.s.b.p.b.listener.StepMetricsListener thread=virtual-189 request_id=cycle-a1f41423-d768-46bb-b24b-4b04ff05b6b0/9fed7e1f-2550-3cf7-a4a9-7c5bfa30070d trace_id=1440e7da85e9d2d3424b7d668fe24bcb span_id=045e6a0e470bbead context=metrics operation=step.metrics step=partitionWorkerStep:partition0004 fileId=9fed7e1f-2550-3cf7-a4a9-7c5bfa30070d jobExecutionId=1 status=COMPLETED durationMs=360338 lines=20000000 bytes=3020000019 linesPerSec=55503 mbPerSec=7.99 msg="STEP_METRICS" data={"stepExecutionId":7,"failures":[]}
+partitioner-1 2026-09-18T19:19:39.214Z level=INFO logger=b.c.s.b.p.b.listener.StepMetricsListener thread=virtual-186 request_id=cycle-a1f41423-d768-46bb-b24b-4b04ff05b6b0/9fed7e1f-2550-3cf7-a4a9-7c5bfa30070d trace_id=1440e7da85e9d2d3424b7d668fe24bcb span_id=045e6a0e470bbead context=metrics operation=step.metrics step=partitionWorkerStep:partition0008 fileId=9fed7e1f-2550-3cf7-a4a9-7c5bfa30070d jobExecutionId=1 status=COMPLETED durationMs=365239 lines=20000000 bytes=3020000019 linesPerSec=54759 mbPerSec=7.89 msg="STEP_METRICS" data={"stepExecutionId":11,"failures":[]}
+partitioner-1 2026-09-18T19:19:39.643Z level=INFO logger=b.c.s.b.p.b.listener.StepMetricsListener thread=virtual-190 request_id=cycle-a1f41423-d768-46bb-b24b-4b04ff05b6b0/9fed7e1f-2550-3cf7-a4a9-7c5bfa30070d trace_id=1440e7da85e9d2d3424b7d668fe24bcb span_id=045e6a0e470bbead context=metrics operation=step.metrics step=partitionWorkerStep:partition0007 fileId=9fed7e1f-2550-3cf7-a4a9-7c5bfa30070d jobExecutionId=1 status=COMPLETED durationMs=365658 lines=20000000 bytes=3020000019 linesPerSec=54696 mbPerSec=7.88 msg="STEP_METRICS" data={"stepExecutionId":10,"failures":[]}
+partitioner-1 2026-09-18T19:19:40.799Z level=INFO logger=b.c.s.b.p.b.listener.StepMetricsListener thread=virtual-192 request_id=cycle-a1f41423-d768-46bb-b24b-4b04ff05b6b0/9fed7e1f-2550-3cf7-a4a9-7c5bfa30070d trace_id=1440e7da85e9d2d3424b7d668fe24bcb span_id=045e6a0e470bbead context=metrics operation=step.metrics step=partitionWorkerStep:partition0006 fileId=9fed7e1f-2550-3cf7-a4a9-7c5bfa30070d jobExecutionId=1 status=COMPLETED durationMs=366817 lines=20000000 bytes=3020000019 linesPerSec=54523 mbPerSec=7.85 msg="STEP_METRICS" data={"stepExecutionId":9,"failures":[]}
+partitioner-1 2026-09-18T19:19:40.831Z level=INFO logger=b.c.s.b.p.b.listener.StepMetricsListener thread=virtual-185 request_id=cycle-a1f41423-d768-46bb-b24b-4b04ff05b6b0/9fed7e1f-2550-3cf7-a4a9-7c5bfa30070d trace_id=1440e7da85e9d2d3424b7d668fe24bcb span_id=045e6a0e470bbead context=metrics operation=step.metrics step=partitionWorkerStep:partition0005 fileId=9fed7e1f-2550-3cf7-a4a9-7c5bfa30070d jobExecutionId=1 status=COMPLETED durationMs=366860 lines=20000000 bytes=3020000019 linesPerSec=54517 mbPerSec=7.85 msg="STEP_METRICS" data={"stepExecutionId":8,"failures":[]}
+partitioner-1 2026-09-18T19:19:41.528Z level=INFO logger=b.c.s.b.p.b.listener.StepMetricsListener thread=virtual-187 request_id=cycle-a1f41423-d768-46bb-b24b-4b04ff05b6b0/9fed7e1f-2550-3cf7-a4a9-7c5bfa30070d trace_id=1440e7da85e9d2d3424b7d668fe24bcb span_id=045e6a0e470bbead context=metrics operation=step.metrics step=partitionWorkerStep:partition0010 fileId=9fed7e1f-2550-3cf7-a4a9-7c5bfa30070d jobExecutionId=1 status=COMPLETED durationMs=367552 lines=20000000 bytes=3020000019 linesPerSec=54414 mbPerSec=7.84 msg="STEP_METRICS" data={"stepExecutionId":13,"failures":[]}
+partitioner-1 2026-09-18T19:19:47.273Z level=INFO logger=b.c.s.b.p.b.listener.StepMetricsListener thread=virtual-193 request_id=cycle-a1f41423-d768-46bb-b24b-4b04ff05b6b0/9fed7e1f-2550-3cf7-a4a9-7c5bfa30070d trace_id=1440e7da85e9d2d3424b7d668fe24bcb span_id=045e6a0e470bbead context=metrics operation=step.metrics step=partitionWorkerStep:partition0009 fileId=9fed7e1f-2550-3cf7-a4a9-7c5bfa30070d jobExecutionId=1 status=COMPLETED durationMs=373294 lines=20000000 bytes=3020000019 linesPerSec=53577 mbPerSec=7.72 msg="STEP_METRICS" data={"stepExecutionId":12,"failures":[]}
+partitioner-1 2026-09-18T19:19:47.304Z level=INFO logger=b.c.s.b.p.b.listener.StepMetricsListener thread=virtual-174 request_id=cycle-a1f41423-d768-46bb-b24b-4b04ff05b6b0/9fed7e1f-2550-3cf7-a4a9-7c5bfa30070d trace_id=1440e7da85e9d2d3424b7d668fe24bcb span_id=045e6a0e470bbead context=metrics operation=step.metrics step=partitionMasterStep fileId=9fed7e1f-2550-3cf7-a4a9-7c5bfa30070d jobExecutionId=1 status=COMPLETED durationMs=373566 lines=200000000 bytes=30200000190 linesPerSec=535381 mbPerSec=77.10 msg="STEP_METRICS" data={"stepExecutionId":3,"failures":[]}
+partitioner-1 2026-09-18T19:19:47.374Z level=INFO logger=b.c.s.b.p.b.listener.StepMetricsListener thread=virtual-174 request_id=cycle-a1f41423-d768-46bb-b24b-4b04ff05b6b0/9fed7e1f-2550-3cf7-a4a9-7c5bfa30070d trace_id=1440e7da85e9d2d3424b7d668fe24bcb span_id=045e6a0e470bbead context=metrics operation=step.metrics step=registerPartitionsStep fileId=9fed7e1f-2550-3cf7-a4a9-7c5bfa30070d jobExecutionId=1 status=COMPLETED durationMs=45 lines=0 bytes=0 linesPerSec=0 mbPerSec=0.00 msg="STEP_METRICS" data={"stepExecutionId":14,"failures":[]}
+partitioner-1 2026-09-18T19:19:47.506Z level=INFO logger=b.c.s.b.p.b.listener.StepMetricsListener thread=virtual-174 request_id=cycle-a1f41423-d768-46bb-b24b-4b04ff05b6b0/9fed7e1f-2550-3cf7-a4a9-7c5bfa30070d trace_id=1440e7da85e9d2d3424b7d668fe24bcb span_id=045e6a0e470bbead context=metrics operation=step.metrics step=moveOriginalStep fileId=9fed7e1f-2550-3cf7-a4a9-7c5bfa30070d jobExecutionId=1 status=COMPLETED durationMs=111 lines=0 bytes=30200000019 linesPerSec=0 mbPerSec=259468.15 msg="STEP_METRICS" data={"stepExecutionId":15,"failures":[]}
+partitioner-1 2026-09-18T19:19:48.515Z level=INFO logger=b.c.s.b.p.b.listener.StepMetricsListener thread=virtual-174 request_id=cycle-a1f41423-d768-46bb-b24b-4b04ff05b6b0/9fed7e1f-2550-3cf7-a4a9-7c5bfa30070d trace_id=1440e7da85e9d2d3424b7d668fe24bcb span_id=045e6a0e470bbead context=metrics operation=step.metrics step=publishPartitionsStep fileId=9fed7e1f-2550-3cf7-a4a9-7c5bfa30070d jobExecutionId=1 status=COMPLETED durationMs=992 lines=0 bytes=0 linesPerSec=0 mbPerSec=0.00 msg="STEP_METRICS" data={"stepExecutionId":16,"failures":[]}
+partitioner-1 2026-09-18T19:19:48.529Z level=INFO logger=b.c.s.b.p.b.listener.JobMetricsListener thread=virtual-174 request_id=cycle-a1f41423-d768-46bb-b24b-4b04ff05b6b0/9fed7e1f-2550-3cf7-a4a9-7c5bfa30070d trace_id=1440e7da85e9d2d3424b7d668fe24bcb span_id=045e6a0e470bbead context=metrics operation=job.metrics job=filePartitionJob fileId=9fed7e1f-2550-3cf7-a4a9-7c5bfa30070d jobExecutionId=1 status=COMPLETED attempt=1 durationMs=375379 lines=200000000 bytes=30200000019 partitions=10 linesPerSec=532795 mbPerSec=76.73 msg="JOB_METRICS" data={"fileName":"MOV_ABERTO_20260918_1789758443079_01.txt","failures":[]}
+== amostras de docker stats
+psl-partitioner-1 660.8MiB / 2GiB 0.07%
+psl-partitioner-2 627.9MiB / 2GiB 0.08%
+psl-azurite 58.52MiB / 35.18GiB 66.15%
+disk 191
+psl-partitioner-1 674.9MiB / 2GiB 124.27%
+psl-partitioner-2 630.3MiB / 2GiB 4.81%
+psl-azurite 100.1MiB / 35.18GiB 125.03%
+psl-partitioner-1 675.1MiB / 2GiB 1.57%
+psl-partitioner-2 625.6MiB / 2GiB 1.58%
+psl-azurite 131.6MiB / 35.18GiB 111.78%
+psl-partitioner-1 675.2MiB / 2GiB 0.22%
+psl-partitioner-2 625.9MiB / 2GiB 4.38%
+psl-azurite 172.4MiB / 35.18GiB 113.17%
+disk 189
+psl-partitioner-1 675.5MiB / 2GiB 0.07%
+psl-partitioner-2 626MiB / 2GiB 0.04%
+psl-azurite 192.4MiB / 35.18GiB 109.11%
+psl-partitioner-1 675.8MiB / 2GiB 13.53%
+psl-partitioner-2 642.1MiB / 2GiB 126.56%
+psl-azurite 217.1MiB / 35.18GiB 118.06%
+psl-partitioner-1 675.9MiB / 2GiB 0.27%
+psl-partitioner-2 642.5MiB / 2GiB 0.08%
+psl-azurite 230.2MiB / 35.18GiB 110.84%
+psl-partitioner-1 676MiB / 2GiB 4.53%
+psl-partitioner-2 642.4MiB / 2GiB 4.63%
+psl-azurite 262.2MiB / 35.18GiB 107.16%
+disk 186
+psl-partitioner-1 676.2MiB / 2GiB 0.06%
+psl-partitioner-2 642.6MiB / 2GiB 0.06%
+psl-azurite 271.8MiB / 35.18GiB 111.63%
+psl-partitioner-1 676.2MiB / 2GiB 1.89%
+psl-partitioner-2 643.3MiB / 2GiB 13.89%
+psl-azurite 302.9MiB / 35.18GiB 108.37%
+psl-partitioner-1 676.4MiB / 2GiB 0.31%
+psl-partitioner-2 643.4MiB / 2GiB 0.11%
+psl-azurite 333.4MiB / 35.18GiB 108.37%
+psl-partitioner-1 676.5MiB / 2GiB 0.04%
+psl-partitioner-2 643.5MiB / 2GiB 0.09%
+psl-azurite 341.9MiB / 35.18GiB 115.57%
+disk 183
+psl-partitioner-1 676.6MiB / 2GiB 0.04%
+psl-partitioner-2 643.6MiB / 2GiB 0.05%
+psl-azurite 366.7MiB / 35.18GiB 112.54%
+psl-partitioner-1 676.7MiB / 2GiB 1.50%
+psl-partitioner-2 643.8MiB / 2GiB 10.17%
+psl-azurite 383.7MiB / 35.18GiB 124.19%
+psl-partitioner-1 676.8MiB / 2GiB 0.04%
+psl-partitioner-2 644MiB / 2GiB 0.06%
+psl-azurite 397.5MiB / 35.18GiB 110.89%
+psl-partitioner-1 676.9MiB / 2GiB 0.13%
+psl-partitioner-2 644MiB / 2GiB 0.07%
+psl-azurite 408.8MiB / 35.18GiB 111.95%
+disk 181
+psl-partitioner-1 677MiB / 2GiB 3.32%
+psl-partitioner-2 644.1MiB / 2GiB 3.56%
+psl-azurite 432.2MiB / 35.18GiB 110.05%
+psl-partitioner-1 677MiB / 2GiB 0.20%
+psl-partitioner-2 644.2MiB / 2GiB 0.33%
+psl-azurite 445.3MiB / 35.18GiB 108.34%
+psl-partitioner-1 677.1MiB / 2GiB 0.04%
+psl-partitioner-2 644.3MiB / 2GiB 0.05%
+psl-azurite 479.8MiB / 35.18GiB 103.73%
+psl-partitioner-1 677.2MiB / 2GiB 0.05%
+psl-partitioner-2 644.4MiB / 2GiB 0.06%
+psl-azurite 493.8MiB / 35.18GiB 105.77%
+disk 178
+psl-partitioner-1 677.3MiB / 2GiB 0.07%
+psl-partitioner-2 644.5MiB / 2GiB 0.06%
+psl-azurite 526.6MiB / 35.18GiB 108.69%
+psl-partitioner-1 677.5MiB / 2GiB 2.02%
+psl-partitioner-2 644.7MiB / 2GiB 2.56%
+psl-azurite 536MiB / 35.18GiB 110.27%
+psl-partitioner-1 678.1MiB / 2GiB 0.12%
+psl-partitioner-2 644.8MiB / 2GiB 0.06%
+psl-azurite 546.7MiB / 35.18GiB 121.42%
+psl-partitioner-1 678.2MiB / 2GiB 0.04%
+psl-partitioner-2 644.9MiB / 2GiB 0.04%
+psl-azurite 555.9MiB / 35.18GiB 124.05%
+disk 176
+psl-partitioner-1 678.4MiB / 2GiB 0.36%
+psl-partitioner-2 645MiB / 2GiB 0.39%
+psl-azurite 575.2MiB / 35.18GiB 101.70%
+psl-partitioner-1 678.4MiB / 2GiB 0.16%
+psl-partitioner-2 645MiB / 2GiB 0.04%
+psl-azurite 595.2MiB / 35.18GiB 105.76%
+psl-partitioner-1 678.6MiB / 2GiB 4.02%
+psl-partitioner-2 645.3MiB / 2GiB 6.19%
+psl-azurite 618MiB / 35.18GiB 117.73%
+psl-partitioner-1 678.6MiB / 2GiB 0.06%
+psl-partitioner-2 645.3MiB / 2GiB 0.05%
+psl-azurite 631.5MiB / 35.18GiB 111.97%
+disk 174
+psl-partitioner-1 678.7MiB / 2GiB 0.05%
+psl-partitioner-2 645.3MiB / 2GiB 0.04%
+psl-azurite 650.7MiB / 35.18GiB 102.93%
+psl-partitioner-1 678.8MiB / 2GiB 3.49%
+psl-partitioner-2 645.4MiB / 2GiB 3.81%
+psl-azurite 670.9MiB / 35.18GiB 116.33%
+psl-partitioner-1 678.8MiB / 2GiB 2.32%
+psl-partitioner-2 645.6MiB / 2GiB 8.66%
+psl-azurite 664.5MiB / 35.18GiB 122.96%
+psl-partitioner-1 678.9MiB / 2GiB 0.58%
+psl-partitioner-2 645.6MiB / 2GiB 0.59%
+psl-azurite 701.4MiB / 35.18GiB 102.37%
+disk 172
+psl-partitioner-1 679MiB / 2GiB 0.08%
+psl-partitioner-2 645.7MiB / 2GiB 0.09%
+psl-azurite 701MiB / 35.18GiB 114.36%
+psl-partitioner-1 679MiB / 2GiB 0.03%
+psl-partitioner-2 645.7MiB / 2GiB 0.03%
+psl-azurite 727.7MiB / 35.18GiB 102.21%
+psl-partitioner-1 679.1MiB / 2GiB 2.77%
+psl-partitioner-2 645.8MiB / 2GiB 2.49%
+psl-azurite 744.4MiB / 35.18GiB 102.65%
+psl-partitioner-1 679.2MiB / 2GiB 0.14%
+psl-partitioner-2 645.8MiB / 2GiB 0.09%
+psl-azurite 747.4MiB / 35.18GiB 105.09%
+disk 170
+psl-partitioner-1 679.2MiB / 2GiB 0.06%
+psl-partitioner-2 645.8MiB / 2GiB 0.16%
+psl-azurite 767.2MiB / 35.18GiB 111.25%
+psl-partitioner-1 679.3MiB / 2GiB 0.05%
+psl-partitioner-2 645.9MiB / 2GiB 0.04%
+psl-azurite 800MiB / 35.18GiB 115.96%
+psl-partitioner-1 679.3MiB / 2GiB 0.24%
+psl-partitioner-2 646MiB / 2GiB 0.22%
+psl-azurite 795.8MiB / 35.18GiB 108.74%
+psl-partitioner-1 679.4MiB / 2GiB 3.55%
+psl-partitioner-2 646.1MiB / 2GiB 3.27%
+psl-azurite 849.5MiB / 35.18GiB 109.25%
+disk 168
+psl-partitioner-1 679.5MiB / 2GiB 0.05%
+psl-partitioner-2 646.2MiB / 2GiB 0.06%
+psl-azurite 825.8MiB / 35.18GiB 113.33%
+psl-partitioner-1 679.6MiB / 2GiB 0.06%
+psl-partitioner-2 646.3MiB / 2GiB 0.06%
+psl-azurite 845.3MiB / 35.18GiB 111.69%
+psl-partitioner-1 679.6MiB / 2GiB 0.05%
+psl-partitioner-2 646.3MiB / 2GiB 0.05%
+psl-azurite 867.6MiB / 35.18GiB 113.08%
+psl-partitioner-1 679.8MiB / 2GiB 0.05%
+psl-partitioner-2 646.4MiB / 2GiB 0.06%
+psl-azurite 879.2MiB / 35.18GiB 126.70%
+disk 166
+psl-partitioner-1 679.8MiB / 2GiB 4.83%
+psl-partitioner-2 648.6MiB / 2GiB 1.45%
+psl-azurite 899MiB / 35.18GiB 106.05%
+psl-partitioner-1 679.9MiB / 2GiB 0.11%
+psl-partitioner-2 646.5MiB / 2GiB 0.19%
+psl-azurite 880MiB / 35.18GiB 114.77%
+psl-partitioner-1 679.9MiB / 2GiB 0.08%
+psl-partitioner-2 646.5MiB / 2GiB 0.08%
+psl-azurite 896.9MiB / 35.18GiB 113.68%
+psl-partitioner-1 679.9MiB / 2GiB 0.04%
+psl-partitioner-2 646.6MiB / 2GiB 0.06%
+psl-azurite 879.7MiB / 35.18GiB 114.18%
+disk 164
+psl-partitioner-1 680.1MiB / 2GiB 0.14%
+psl-partitioner-2 646.6MiB / 2GiB 0.12%
+psl-azurite 876MiB / 35.18GiB 14.13%
+psl-partitioner-1 680.6MiB / 2GiB 1.53%
+psl-partitioner-2 646.9MiB / 2GiB 2.14%
+psl-azurite 870.9MiB / 35.18GiB 0.02%
+psl-partitioner-1 680.9MiB / 2GiB 0.10%
+psl-partitioner-2 646.7MiB / 2GiB 0.09%
+psl-azurite 870.9MiB / 35.18GiB 0.00%
+psl-partitioner-1 681MiB / 2GiB 1.18%
+psl-partitioner-2 646.7MiB / 2GiB 1.33%
+psl-azurite 870.9MiB / 35.18GiB 0.06%
+disk 163
+psl-partitioner-1 1.136GiB / 2GiB 66.17%
+psl-partitioner-2 646.9MiB / 2GiB 0.12%
+psl-azurite 911.1MiB / 35.18GiB 288.60%
+psl-partitioner-1 1.47GiB / 2GiB 54.75%
+psl-partitioner-2 647MiB / 2GiB 0.10%
+psl-azurite 878.8MiB / 35.18GiB 290.29%
+psl-partitioner-1 1.608GiB / 2GiB 40.17%
+psl-partitioner-2 647MiB / 2GiB 9.09%
+psl-azurite 885MiB / 35.18GiB 277.13%
+psl-partitioner-1 1.484GiB / 2GiB 8.01%
+psl-partitioner-2 647MiB / 2GiB 0.06%
+psl-azurite 876.2MiB / 35.18GiB 238.37%
+disk 161
+psl-partitioner-1 1.516GiB / 2GiB 80.76%
+psl-partitioner-2 647.1MiB / 2GiB 0.07%
+psl-azurite 869.3MiB / 35.18GiB 312.07%
+psl-partitioner-1 1.515GiB / 2GiB 41.42%
+psl-partitioner-2 647.1MiB / 2GiB 1.31%
+psl-azurite 893.2MiB / 35.18GiB 276.40%
+psl-partitioner-1 1.575GiB / 2GiB 33.11%
+psl-partitioner-2 647.1MiB / 2GiB 0.12%
+psl-azurite 848.8MiB / 35.18GiB 309.75%
+psl-partitioner-1 1.571GiB / 2GiB 14.96%
+psl-partitioner-2 647.2MiB / 2GiB 0.45%
+psl-azurite 874.1MiB / 35.18GiB 314.35%
+disk 158
+psl-partitioner-1 1.601GiB / 2GiB 45.83%
+psl-partitioner-2 647.3MiB / 2GiB 0.05%
+psl-azurite 853.6MiB / 35.18GiB 287.56%
+psl-partitioner-1 1.651GiB / 2GiB 23.99%
+psl-partitioner-2 649MiB / 2GiB 3.74%
+psl-azurite 840.8MiB / 35.18GiB 329.28%
+psl-partitioner-1 1.65GiB / 2GiB 14.43%
+psl-partitioner-2 649.4MiB / 2GiB 0.06%
+psl-azurite 836.1MiB / 35.18GiB 259.22%
+psl-partitioner-1 1.652GiB / 2GiB 36.04%
+psl-partitioner-2 649.4MiB / 2GiB 0.05%
+psl-azurite 823.7MiB / 35.18GiB 328.34%
+disk 156
+psl-partitioner-1 1.697GiB / 2GiB 24.30%
+psl-partitioner-2 649.5MiB / 2GiB 0.05%
+psl-azurite 828.5MiB / 35.18GiB 356.38%
+psl-partitioner-1 1.698GiB / 2GiB 24.48%
+psl-partitioner-2 649.5MiB / 2GiB 0.04%
+psl-azurite 821.4MiB / 35.18GiB 253.72%
+psl-partitioner-1 1.706GiB / 2GiB 23.39%
+psl-partitioner-2 649.7MiB / 2GiB 9.26%
+psl-azurite 799.4MiB / 35.18GiB 314.32%
+psl-partitioner-1 1.698GiB / 2GiB 24.46%
+psl-partitioner-2 649.8MiB / 2GiB 0.05%
+psl-azurite 809.4MiB / 35.18GiB 267.11%
+disk 154
+psl-partitioner-1 1.698GiB / 2GiB 16.15%
+psl-partitioner-2 649.8MiB / 2GiB 7.31%
+psl-azurite 783.4MiB / 35.18GiB 294.06%
+psl-partitioner-1 1.712GiB / 2GiB 22.19%
+psl-partitioner-2 649.8MiB / 2GiB 0.07%
+psl-azurite 774.1MiB / 35.18GiB 292.32%
+psl-partitioner-1 1.709GiB / 2GiB 43.97%
+psl-partitioner-2 649.9MiB / 2GiB 0.12%
+psl-azurite 753MiB / 35.18GiB 292.04%
+psl-partitioner-1 1.718GiB / 2GiB 12.46%
+psl-partitioner-2 649.9MiB / 2GiB 0.07%
+psl-azurite 740.4MiB / 35.18GiB 238.93%
+disk 151
+psl-partitioner-1 1.715GiB / 2GiB 19.97%
+psl-partitioner-2 649.9MiB / 2GiB 0.03%
+psl-azurite 725.5MiB / 35.18GiB 228.05%
+psl-partitioner-1 1.717GiB / 2GiB 42.73%
+psl-partitioner-2 650MiB / 2GiB 0.12%
+psl-azurite 710MiB / 35.18GiB 254.60%
+psl-partitioner-1 1.716GiB / 2GiB 13.80%
+psl-partitioner-2 650MiB / 2GiB 0.06%
+psl-azurite 714.1MiB / 35.18GiB 265.69%
+psl-partitioner-1 1.723GiB / 2GiB 15.79%
+psl-partitioner-2 650MiB / 2GiB 26.62%
+psl-azurite 700.7MiB / 35.18GiB 258.31%
+disk 148
+psl-partitioner-1 1.716GiB / 2GiB 7.67%
+psl-partitioner-2 650.1MiB / 2GiB 0.05%
+psl-azurite 686.3MiB / 35.18GiB 269.36%
+psl-partitioner-1 1.723GiB / 2GiB 19.74%
+psl-partitioner-2 650.1MiB / 2GiB 8.42%
+psl-azurite 672.4MiB / 35.18GiB 231.82%
+psl-partitioner-1 1.729GiB / 2GiB 21.95%
+psl-partitioner-2 650.1MiB / 2GiB 0.06%
+psl-azurite 666.9MiB / 35.18GiB 246.06%
+psl-partitioner-1 1.704GiB / 2GiB 27.44%
+psl-partitioner-2 650.1MiB / 2GiB 0.04%
+psl-azurite 655.3MiB / 35.18GiB 224.40%
+disk 146
+psl-partitioner-1 1.716GiB / 2GiB 29.31%
+psl-partitioner-2 650.2MiB / 2GiB 0.06%
+psl-azurite 691.3MiB / 35.18GiB 239.01%
+psl-partitioner-1 1.726GiB / 2GiB 27.08%
+psl-partitioner-2 650.2MiB / 2GiB 0.07%
+psl-azurite 663.8MiB / 35.18GiB 235.82%
+psl-partitioner-1 1.723GiB / 2GiB 15.71%
+psl-partitioner-2 650.2MiB / 2GiB 12.79%
+psl-azurite 651.2MiB / 35.18GiB 251.63%
+psl-partitioner-1 1.731GiB / 2GiB 23.65%
+psl-partitioner-2 650.3MiB / 2GiB 0.04%
+psl-azurite 679.5MiB / 35.18GiB 223.91%
+disk 144
+psl-partitioner-1 1.731GiB / 2GiB 32.65%
+psl-partitioner-2 650.3MiB / 2GiB 1.11%
+psl-azurite 642.3MiB / 35.18GiB 238.93%
+psl-partitioner-1 1.728GiB / 2GiB 16.95%
+psl-partitioner-2 650.3MiB / 2GiB 18.06%
+psl-azurite 638.1MiB / 35.18GiB 227.12%
+psl-partitioner-1 1.737GiB / 2GiB 22.07%
+psl-partitioner-2 650.3MiB / 2GiB 0.05%
+psl-azurite 658.7MiB / 35.18GiB 251.17%
+psl-partitioner-1 1.735GiB / 2GiB 28.71%
+psl-partitioner-2 650.4MiB / 2GiB 0.04%
+psl-azurite 666.9MiB / 35.18GiB 212.37%
+disk 142
+psl-partitioner-1 1.736GiB / 2GiB 14.80%
+psl-partitioner-2 650.6MiB / 2GiB 0.09%
+psl-azurite 644MiB / 35.18GiB 350.95%
+psl-partitioner-1 1.728GiB / 2GiB 20.80%
+psl-partitioner-2 650.6MiB / 2GiB 0.41%
+psl-azurite 654MiB / 35.18GiB 255.94%
+psl-partitioner-1 1.73GiB / 2GiB 4.92%
+psl-partitioner-2 650.6MiB / 2GiB 6.95%
+psl-azurite 655MiB / 35.18GiB 286.94%
+psl-partitioner-1 1.732GiB / 2GiB 16.36%
+psl-partitioner-2 650.6MiB / 2GiB 0.06%
+psl-azurite 654.6MiB / 35.18GiB 236.57%
+disk 140
+psl-partitioner-1 1.731GiB / 2GiB 12.57%
+psl-partitioner-2 650.6MiB / 2GiB 0.05%
+psl-azurite 647.3MiB / 35.18GiB 252.34%
+psl-partitioner-1 1.73GiB / 2GiB 16.91%
+psl-partitioner-2 650.7MiB / 2GiB 0.05%
+psl-azurite 659.9MiB / 35.18GiB 244.32%
+psl-partitioner-1 1.732GiB / 2GiB 15.24%
+psl-partitioner-2 650.7MiB / 2GiB 0.04%
+psl-azurite 642.5MiB / 35.18GiB 219.34%
+psl-partitioner-1 1.734GiB / 2GiB 14.50%
+psl-partitioner-2 650.7MiB / 2GiB 12.85%
+psl-azurite 651MiB / 35.18GiB 172.39%
+disk 139
+psl-partitioner-1 1.735GiB / 2GiB 12.92%
+psl-partitioner-2 650.7MiB / 2GiB 0.15%
+psl-azurite 646.9MiB / 35.18GiB 234.74%
+psl-partitioner-1 1.733GiB / 2GiB 24.37%
+psl-partitioner-2 651MiB / 2GiB 0.13%
+psl-azurite 642.6MiB / 35.18GiB 238.23%
+psl-partitioner-1 1.732GiB / 2GiB 14.13%
+psl-partitioner-2 650.7MiB / 2GiB 0.05%
+psl-azurite 637.3MiB / 35.18GiB 229.06%
+psl-partitioner-1 1.727GiB / 2GiB 21.16%
+psl-partitioner-2 650.7MiB / 2GiB 0.06%
+psl-azurite 642.4MiB / 35.18GiB 226.87%
+disk 136
+psl-partitioner-1 1.728GiB / 2GiB 15.43%
+psl-partitioner-2 650.7MiB / 2GiB 52.82%
+psl-azurite 649.9MiB / 35.18GiB 276.20%
+psl-partitioner-1 1.729GiB / 2GiB 2.82%
+psl-partitioner-2 650.8MiB / 2GiB 0.50%
+psl-azurite 666.6MiB / 35.18GiB 193.18%
+psl-partitioner-1 1.728GiB / 2GiB 7.41%
+psl-partitioner-2 650.8MiB / 2GiB 1.89%
+psl-azurite 663.7MiB / 35.18GiB 122.45%

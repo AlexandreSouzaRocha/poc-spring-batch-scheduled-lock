@@ -24,7 +24,7 @@ public class AzureBlobReader implements BlobReader {
 
     @Override
     public byte[] read(String path, ByteRange range) {
-        try (InputStream input = open(path, range)) {
+        try (InputStream input = openStream(path, range)) {
             return input.readNBytes((int) range.length());
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -33,7 +33,7 @@ public class AzureBlobReader implements BlobReader {
 
     @Override
     public long copy(String path, ByteRange range, OutputStream target) {
-        try (InputStream input = open(path, range)) {
+        try (InputStream input = openStream(path, range)) {
             return transfer(input, target);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -50,7 +50,8 @@ public class AzureBlobReader implements BlobReader {
         }
     }
 
-    private InputStream open(String path, ByteRange range) {
+    @Override
+    public InputStream openStream(String path, ByteRange range) {
         int blockSize = (int) Math.min(settings.readBlockSizeBytes(), Math.max(range.length(), 1));
         return container.getBlobClient(path).openInputStream(new BlobInputStreamOptions()
                 .setRange(new BlobRange(range.start(), range.length()))

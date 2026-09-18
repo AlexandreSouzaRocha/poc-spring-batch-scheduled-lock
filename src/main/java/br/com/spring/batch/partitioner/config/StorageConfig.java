@@ -1,5 +1,7 @@
 package br.com.spring.batch.partitioner.config;
 
+import br.com.spring.batch.partitioner.batch.partition.PartitionTransfer;
+import br.com.spring.batch.partitioner.config.properties.AppProperties;
 import br.com.spring.batch.partitioner.config.properties.AppProperties.BlobSettings;
 import br.com.spring.batch.partitioner.storage.BlobCatalog;
 import br.com.spring.batch.partitioner.storage.BlobMover;
@@ -41,6 +43,13 @@ public class StorageConfig {
     @Bean
     public BlobWriter blobWriter(BlobContainerClient container, BlobSettings settings) {
         return new AzureBlobWriter(container, settings);
+    }
+
+    @Bean
+    public PartitionTransfer partitionTransfer(BlobReader blobReader, BlobWriter blobWriter,
+            AppProperties properties) {
+        return new PartitionTransfer(blobReader, blobWriter, (int) properties.blob().uploadBlockSizeBytes(),
+                properties.partition().threadsPerPartition());
     }
 
     @Bean

@@ -3,6 +3,7 @@ package br.com.spring.batch.partitioner.storage.azure;
 import br.com.spring.batch.partitioner.config.properties.AppProperties.BlobSettings;
 import br.com.spring.batch.partitioner.storage.BlobUpload;
 import br.com.spring.batch.partitioner.storage.BlobWriter;
+import br.com.spring.batch.partitioner.storage.BlockUpload;
 import com.azure.storage.blob.BlobContainerClient;
 
 public class AzureBlobWriter implements BlobWriter {
@@ -19,5 +20,10 @@ public class AzureBlobWriter implements BlobWriter {
     public BlobUpload open(String path) {
         return new AzureBlockUpload(container.getBlobClient(path).getBlockBlobClient(),
                 (int) settings.uploadBlockSizeBytes());
+    }
+
+    @Override
+    public BlockUpload openBlocks(String path) {
+        return new AzureBlockList(container.getBlobClient(path).getBlockBlobClient());
     }
 }

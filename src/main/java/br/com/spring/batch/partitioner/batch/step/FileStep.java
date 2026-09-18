@@ -18,6 +18,10 @@ public record FileStep(StepContribution contribution) {
         return stepExecution().getJobExecution().getJobInstance();
     }
 
+    public long jobExecutionId() {
+        return stepExecution().getJobExecutionId();
+    }
+
     public ExecutionContext executionContext() {
         return stepExecution().getExecutionContext();
     }

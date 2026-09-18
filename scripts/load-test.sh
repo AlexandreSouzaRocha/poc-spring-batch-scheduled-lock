@@ -44,7 +44,7 @@ stop_sampler() {
 sample_resources() {
   local tick=0
   while true; do
-    docker stats --no-stream --format '{{.Name}} {{.MemUsage}} {{.CPUPerc}}' psl-partitioner-1 psl-partitioner-2 \
+    docker stats --no-stream --format '{{.Name}} {{.MemUsage}} {{.CPUPerc}}' psl-partitioner-1 psl-partitioner-2 psl-azurite \
       2>/dev/null >> "$SAMPLE_FILE" || true
     tick=$((tick + 1))
     if [ "$tick" -eq 1 ] || [ $((tick % 4)) -eq 0 ]; then
@@ -56,6 +56,22 @@ sample_resources() {
 
 peak_memory_mb() {
   grep -E '^psl-partitioner' "$SAMPLE_FILE" | awk '{print $2}' | python3 "$(dirname "$0")/peak-memory.py"
+}
+
+peak_cpu_percent() {
+  local container=$1
+  grep -E "^$container " "$SAMPLE_FILE" | awk '{print $5}' | tr -d '%' | sort -n | tail -1
+}
+
+save_details() {
+  local since=$1 file_id=$2 size=$3
+  local details="${RESULTS_FILE%.md}-detalhes.log"
+  {
+    echo "== ${size}MM fileId=$file_id"
+    logs_since "$since" | grep "fileId=$file_id" | grep -E "operation=(step|job)\.metrics"
+    echo "== amostras de docker stats"
+    cat "$SAMPLE_FILE"
+  } >> "$details"
 }
 
 min_free_disk_gb() {
@@ -86,7 +102,7 @@ run_size() {
   free=$(disk_free_gb)
   if [ "$free" -lt "$needed" ]; then
     printf '  \033[31mABORTADO\033[0m disco livre %s GB < necessario %s GB\n' "$free" "$needed"
-    record_row "$size" "$lines" "$file_gb" "-" "-" "-" "-" "-" "-" "-" "-" "-" "-" "-" "SEM_DISCO"
+    record_row "$size" "$lines" "$file_gb" "-" "-" "-" "-" "-" "-" "-" "-" "-" "-" "-" "-" "SEM_DISCO"
     return
   fi
 
@@ -106,7 +122,7 @@ run_size() {
   id=$(wait_file_registered "$name" 180)
   if [ -z "$id" ]; then
     stop_sampler
-    record_row "$size" "$lines" "$file_gb" "$generation_seconds" "-" "-" "-" "-" "-" "-" "-" "-" "-" "-" "NAO_REGISTRADO"
+    record_row "$size" "$lines" "$file_gb" "$generation_seconds" "-" "-" "-" "-" "-" "-" "-" "-" "-" "-" "-" "NAO_REGISTRADO"
     return
   fi
 
@@ -128,19 +144,20 @@ collect_result() {
   attempts=$(metric_field "$job" attempt)
   kafka_delta=$(($(kafka_count) - kafka_before))
 
-  info "resultado ${size}MM: status=$status"
+  save_details "$start" "$id" "$size"
+  info "resultado ${size}MM: status=$status  cpu_azurite_pico=$(peak_cpu_percent psl-azurite || echo -)%"
   print_metrics "$start" "$id"
   blob_usage || true
 
   record_row "$size" "$lines" "$file_gb" "$generation_seconds" \
     "$(metric_field "$step" durationMs)" "$(metric_field "$step" mbPerSec)" "$(metric_field "$step" linesPerSec)" \
     "$(metric_field "$job" durationMs)" "$(metric_field "$job" mbPerSec)" \
-    "${partitions:--}" "${attempts:--}" "$kafka_delta" \
+    "${partitions:--}" "${PARTITION_THREADS:-1}" "${attempts:--}" "$kafka_delta" \
     "$(peak_memory_mb || echo -)" "$(min_free_disk_gb || echo -)" "$status"
 }
 
 record_row() {
-  printf '| %sMM | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s |\n' "$@" >> "$RESULTS_FILE"
+  printf '| %sMM | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s |\n' "$@" >> "$RESULTS_FILE"
 }
 
 reset_environment() {
@@ -153,14 +170,17 @@ reset_environment() {
 }
 
 write_header() {
-  mkdir -p "$RESULTS_DIR"
+  mkdir -p "$(dirname "$RESULTS_FILE")"
+  if [ "${RESULTS_APPEND:-false}" = "true" ] && [ -s "$RESULTS_FILE" ]; then
+    return 0
+  fi
   {
     echo "# Teste de carga — $(date +'%Y-%m-%d %H:%M')"
     echo
     echo "Particoes: ${PARTITION_COUNT:-10} · OTEL: ${OTEL_ENABLED:-true} · memoria do container: ${PARTITIONER_MEMORY:-2g} · CPUs: ${PARTITIONER_CPUS:-2}"
     echo
-    echo "| tamanho | linhas | arquivo GB | geracao s | particao ms | particao MB/s | linhas/s | job ms | job MB/s | particoes | tentativas | kafka | pico mem MB | disco livre min GB | status |"
-    echo "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"
+    echo "| tamanho | linhas | arquivo GB | geracao s | particao ms | particao MB/s | linhas/s | job ms | job MB/s | particoes | threads | tentativas | kafka | pico mem MB | disco livre min GB | status |"
+    echo "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"
   } > "$RESULTS_FILE"
 }
 

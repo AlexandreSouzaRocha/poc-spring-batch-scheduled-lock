@@ -3,6 +3,8 @@ package br.com.spring.batch.partitioner.batch.tasklet;
 import br.com.spring.batch.partitioner.batch.metrics.StepVolume;
 import br.com.spring.batch.partitioner.batch.partition.PartitionBlobWriter;
 import br.com.spring.batch.partitioner.batch.partition.PartitionBlobWriter.UploadedPartition;
+import br.com.spring.batch.partitioner.batch.progress.PartitionProgressReporter;
+import br.com.spring.batch.partitioner.batch.progress.ProgressCounter;
 import br.com.spring.batch.partitioner.batch.step.FileStep;
 import br.com.spring.batch.partitioner.batch.step.FileStepSupport;
 import br.com.spring.batch.partitioner.model.document.ReceivedFileDocument;
@@ -22,10 +24,13 @@ public class PartitionWriterTasklet implements Tasklet {
 
     private final FileStepSupport support;
     private final PartitionBlobWriter blobWriter;
+    private final PartitionProgressReporter progressReporter;
 
-    public PartitionWriterTasklet(FileStepSupport support, PartitionBlobWriter blobWriter) {
+    public PartitionWriterTasklet(FileStepSupport support, PartitionBlobWriter blobWriter,
+            PartitionProgressReporter progressReporter) {
         this.support = support;
         this.blobWriter = blobWriter;
+        this.progressReporter = progressReporter;
     }
 
     @Override
@@ -33,7 +38,9 @@ public class PartitionWriterTasklet implements Tasklet {
         FileStep step = new FileStep(contribution);
         PartitionRange range = PartitionRange.from(step.executionContext());
         ReceivedFileDocument original = support.load(step.fileId());
-        UploadedPartition uploaded = blobWriter.upload(original, range);
+        ProgressCounter progress = progressReporter.track(original.id(), step.jobExecutionId(), range.index(),
+                range.bytes().length());
+        UploadedPartition uploaded = blobWriter.upload(original, range, progress);
         support.checkPartition(original, range.index());
         step.recordVolume(new StepVolume(range.lineCount(), uploaded.sizeBytes()));
         log.info("partition.upload").field("fileId", original.id()).field("partitionIndex", range.index())
