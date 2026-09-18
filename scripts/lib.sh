@@ -145,3 +145,20 @@ print_metrics() {
     | grep -v "step=partitionWorkerStep" \
     | sed -E 's/ level=[A-Z]+ logger=[^ ]+ thread=[^ ]+ context=metrics operation=[a-z.]+//; s/ msg="[^"]*"//; s/ (data|ex)=.*$//; s/^/  /'
 }
+
+disk_free_gb() {
+  docker run --rm alpine sh -c 'df -P / | awk "NR==2 {print int(\$4 / 1048576)}"'
+}
+
+disk_free_report() {
+  info "disco livre na VM do Docker: $(disk_free_gb) GB"
+}
+
+blob_usage() {
+  docker run --rm --network poc-partitioner_default mcr.microsoft.com/azure-cli:latest \
+    az storage blob list --account-name devstoreaccount1 \
+      --account-key "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==" \
+      --blob-endpoint http://azurite:10000/devstoreaccount1 --container-name movimentos \
+      --query "[].{name:name, bytes:properties.contentLength}" -o json 2>/dev/null \
+    | python3 "$(dirname "${BASH_SOURCE[0]}")/blob-usage.py"
+}

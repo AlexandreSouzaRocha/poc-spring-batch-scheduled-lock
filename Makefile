@@ -15,6 +15,7 @@ ATTEMPT        ?= 1
 PARTITION      ?=
 DELAY          ?= 90
 SCENARIO       ?= all
+SIZES          ?= 50 100 200 250
 SINCE          ?= 24h
 TOPIC          := movimentos-particionados
 BLOB_ACCOUNT   := devstoreaccount1
@@ -30,7 +31,7 @@ JSON           := python3 -m json.tool
 
 .PHONY: help up up-infra infra-init down restart ps logs app-logs build test run generate status file verify locks lock-check \
 	metrics metrics-partitions prometheus kafka-count kafka-tail blob-ls chaos chaos-off kill-owner start-all \
-	e2e chaos-test clean
+	e2e chaos-test load-test reset-data prune disk blob-usage clean
 
 help: ## Lista os alvos disponíveis
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
@@ -108,6 +109,9 @@ kafka-tail: ## Mostra as mensagens publicadas (key + value)
 	docker exec psl-kafka kafka-console-consumer --bootstrap-server localhost:9092 --topic $(TOPIC) \
 		--from-beginning --property print.key=true --timeout-ms 5000 || true
 
+blob-usage: ## Tamanho ocupado por pasta no blob (entrada/, processados/, aberto/ ...)
+	@bash -c 'source scripts/lib.sh && blob_usage'
+
 blob-ls: ## Lista blobs do container (PREFIX=entrada/ | processados/ | aberto/ ...)
 	$(AZ_CLI) storage blob list --account-name $(BLOB_ACCOUNT) --account-key "$(BLOB_KEY)" \
 		--blob-endpoint "$(BLOB_ENDPOINT)" --container-name $(BLOB_CONTAINER) --prefix "$(PREFIX)" \
@@ -135,6 +139,22 @@ e2e: ## Teste integrado: gera, aguarda e valida partições, blob, Kafka, lock e
 
 chaos-test: ## Cenários de resume/recovery: SCENARIO=partition-fail|publish-fail|invalid-file|slow-io|kill-owner|all
 	./scripts/chaos-test.sh $(SCENARIO)
+
+## ---------- Testes de carga ----------
+load-test: ## Benchmark por tamanho, limpando o ambiente entre execucoes. SIZES="50 100 200 250" TYPE=ABERTO
+	./scripts/load-test.sh $(SIZES)
+
+reset-data: ## Zera blob, mongo e kafka (down -v + up) e libera o disco usado pela execucao anterior
+	./scripts/reset-data.sh
+
+disk: ## Disco livre na VM do Docker, uso por pasta no blob e espaco ocupado pelo Docker
+	@bash -c 'source scripts/lib.sh && disk_free_report && blob_usage'
+	@docker system df
+
+prune: ## Recupera cache de build e imagens orfas (nao toca em volumes de outros projetos)
+	docker builder prune -f
+	docker image prune -f
+	@bash -c 'source scripts/lib.sh && disk_free_report'
 
 clean: ## Limpa o build local
 	$(MVN) clean

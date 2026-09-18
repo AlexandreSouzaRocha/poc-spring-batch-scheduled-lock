@@ -41,9 +41,11 @@ Testes automatizados:
 make test                                 # unitários + integração do lock (Testcontainers)
 make e2e LINES=5000000 FILES=2            # ponta a ponta com validações no blob, Mongo, Kafka e lock
 make chaos-test SCENARIO=all              # partition-fail, publish-fail, invalid-file, slow-io, kill-owner
+make load-test SIZES="50 100 200 250"     # benchmark por volume, limpando o ambiente entre execuções
 ```
 
-`make help` lista todos os alvos.
+`make help` lista todos os alvos. Entre execuções pesadas, `make reset-data` zera blob, Mongo e
+Kafka e devolve o disco; `make disk` e `make blob-usage` mostram o espaço em uso.
 
 Collections, índices, tópico do Kafka e container do blob são criados pelos containers de init
 (`mongo-init`, `kafka-init`, `azurite-init`), nunca pela aplicação. Ver

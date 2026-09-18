@@ -84,3 +84,52 @@ make start-all
 ```
 
 Pontos de falha: `VALIDATE`, `CLEANUP`, `PARTITION`, `REGISTER`, `MOVE`, `PUBLISH`. Ações: `FAIL` (lança exceção) e `DELAY` (dorme `DELAY` segundos).
+
+## Testes de carga
+
+```bash
+make prune                                   # recupera cache de build e imagens orfas
+make disk                                    # disco livre na VM do Docker + uso por pasta no blob
+make load-test SIZES="50 100 200 250"        # benchmark, limpando o ambiente entre os tamanhos
+```
+
+`scripts/load-test.sh` roda um tamanho por vez e, para cada um:
+
+1. Calcula o espaço necessário (≈3,2 × o tamanho do arquivo: original + partições + cópia do move)
+   e **aborta aquele tamanho** se o disco livre não cobrir, em vez de encher a VM do Docker.
+2. Zera o ambiente com `scripts/reset-data.sh` (`docker compose down -v` + `up`), então cada
+   execução começa com blob, Mongo e Kafka vazios e o disco da execução anterior é devolvido.
+3. Gera o arquivo, aguarda `COMPLETED` (timeout proporcional ao tamanho) e coleta
+   `STEP_METRICS`/`JOB_METRICS`, mensagens no Kafka, pico de memória dos containers
+   (amostragem de `docker stats`) e o mínimo de disco livre durante a execução.
+4. Escreve a linha do resultado em `benchmarks/load-test-<timestamp>.md`.
+
+| Variável | Padrão | Uso |
+|---|---|---|
+| `SIZES` | `50 100 200 250` | Tamanhos em milhões de linhas |
+| `OTEL_ENABLED` | `true` | `false` mede sem a sobrecarga da instrumentação |
+| `PARTITION_COUNT` | `10` | Partições por arquivo |
+| `PARTITIONER_MEMORY` / `PARTITIONER_CPUS` | `2g` / `2` | Limites dos containers, para tuning |
+| `KEEP_DATA` | `false` | `true` não limpa entre execuções (acumula disco) |
+
+Tamanho de arquivo por volume (151 bytes/linha): 50MM ≈ 7,0 GB · 100MM ≈ 14,1 GB ·
+200MM ≈ 28,1 GB · 250MM ≈ 35,2 GB. O pico de disco é ~3× isso, então **250MM exige ~118 GB livres**.
+
+Para mudar limites de container ou instrumentação, exporte as variáveis antes:
+
+```bash
+OTEL_ENABLED=false PARTITIONER_MEMORY=4g PARTITION_COUNT=20 make load-test SIZES="200"
+```
+
+### Limpeza e inspeção do blob
+
+```bash
+make reset-data     # zera blob/mongo/kafka e libera o disco entre execuções
+make blob-usage     # GB por pasta (entrada/, processados/, aberto/ ...)
+make blob-ls PREFIX=processados/
+```
+
+O Azurite não tem interface própria. Para navegar visualmente, use o **Azure Storage Explorer**
+(`brew install --cask microsoft-azure-storage-explorer`) conectado ao emulador local em
+`http://127.0.0.1:10000/devstoreaccount1` com a conta `devstoreaccount1` e a chave do
+`docker-compose.yml`.
