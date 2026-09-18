@@ -7,7 +7,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import br.com.spring.batch.partitioner.batch.partition.PartitionTransfer;
+import br.com.spring.batch.partitioner.batch.partition.StreamingPartitionCopy;
 import br.com.spring.batch.partitioner.batch.progress.PartitionProgressReporter;
 import br.com.spring.batch.partitioner.batch.progress.ProgressCounter;
 import br.com.spring.batch.partitioner.config.properties.AppProperties;
@@ -23,7 +23,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-class PartitionTransferTest {
+class StreamingPartitionCopyTest {
 
     private static final int BLOCK_SIZE = 64;
     private static final byte[] HEADER = "H2026-09-18ABERTO \n".getBytes(StandardCharsets.UTF_8);
@@ -36,7 +36,7 @@ class PartitionTransferTest {
     @DisplayName("o arquivo final e o header seguido da faixa de bytes, qualquer que seja o paralelismo")
     void writesSameContentRegardlessOfThreads(int threads) {
         ByteRange range = new ByteRange(1000, 4200);
-        PartitionTransfer transfer = new PartitionTransfer(new ArrayBlobReader(source), new RecordingBlobWriter(upload),
+        StreamingPartitionCopy transfer = new StreamingPartitionCopy(new ArrayBlobReader(source), new RecordingBlobWriter(upload),
                 BLOCK_SIZE, threads);
 
         long copied = transfer.copy("origem.txt", range, "destino.txt", HEADER, counter(range.length()));
@@ -53,7 +53,7 @@ class PartitionTransferTest {
     }
 
     private static ProgressCounter counter(long totalBytes) {
-        PartitionSettings settings = new PartitionSettings(10, 3, 1, 20, 4, 0);
+        PartitionSettings settings = new PartitionSettings(10, 3, 1, 20, 4, 0, false, 64);
         AppProperties properties = new AppProperties(null, null, settings, null);
         return new PartitionProgressReporter(properties).track("file", 1, 1, totalBytes);
     }
@@ -112,6 +112,11 @@ class PartitionTransferTest {
             byte[] copy = new byte[length];
             System.arraycopy(data, 0, copy, 0, length);
             blocks.put(blockIndex, copy);
+        }
+
+        @Override
+        public void stageFromUrl(int blockIndex, String sourceUrl, ByteRange sourceRange) {
+            throw new UnsupportedOperationException();
         }
 
         @Override

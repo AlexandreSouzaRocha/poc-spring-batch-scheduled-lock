@@ -52,6 +52,8 @@ app:
     files-per-cycle: ${APP_PARTITION_FILES_PER_CYCLE:20}
     threads-per-partition: ${APP_PARTITION_THREADS_PER_PARTITION:1}
     progress-interval-seconds: ${APP_PARTITION_PROGRESS_INTERVAL_SECONDS:10}
+    server-side-copy: ${APP_PARTITION_SERVER_SIDE_COPY:false}
+    server-side-block-size-mb: ${APP_PARTITION_SERVER_SIDE_BLOCK_SIZE_MB:64}
 
   kafka:
     topic: ${APP_KAFKA_TOPIC:movimentos-particionados}

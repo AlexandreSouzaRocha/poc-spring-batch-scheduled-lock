@@ -6,7 +6,9 @@ import java.util.Base64;
 import java.util.List;
 import java.util.stream.IntStream;
 
+import br.com.spring.batch.partitioner.model.partition.ByteRange;
 import br.com.spring.batch.partitioner.storage.BlockUpload;
+import com.azure.storage.blob.models.BlobRange;
 import com.azure.storage.blob.specialized.BlockBlobClient;
 
 public class AzureBlockList implements BlockUpload {
@@ -22,6 +24,12 @@ public class AzureBlockList implements BlockUpload {
     @Override
     public void stage(int blockIndex, byte[] data, int length) {
         blob.stageBlock(blockId(blockIndex), new ByteArrayInputStream(data, 0, length), length);
+    }
+
+    @Override
+    public void stageFromUrl(int blockIndex, String sourceUrl, ByteRange sourceRange) {
+        blob.stageBlockFromUrl(blockId(blockIndex), sourceUrl,
+                new BlobRange(sourceRange.start(), sourceRange.length()));
     }
 
     @Override

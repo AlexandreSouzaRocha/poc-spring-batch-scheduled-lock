@@ -12,8 +12,11 @@ x-app-env: &app-env
   APP_PARTITION_MAX_ATTEMPTS: ${PARTITION_MAX_ATTEMPTS:-3}
   APP_PARTITION_THREADS_PER_PARTITION: ${PARTITION_THREADS:-1}
   APP_PARTITION_PROGRESS_INTERVAL_SECONDS: ${PARTITION_PROGRESS_INTERVAL:-10}
+  APP_PARTITION_SERVER_SIDE_COPY: ${PARTITION_SERVER_SIDE_COPY:-false}
+  APP_PARTITION_SERVER_SIDE_BLOCK_SIZE_MB: ${PARTITION_SERVER_SIDE_BLOCK_MB:-64}
   APP_SCHEDULER_INTERVAL: ${SCHEDULER_INTERVAL:-30s}
   OTEL_JAVAAGENT_ENABLED: ${OTEL_ENABLED:-true}
+  JAVA_TOOL_OPTIONS: "-javaagent:/app/opentelemetry-javaagent.jar -XX:+Use${JVM_GC:-Parallel}GC -XX:+UseCompactObjectHeaders -XX:MaxRAMPercentage=70.0 -XX:InitialRAMPercentage=70.0 -XX:+PrintCommandLineFlags -Xlog:gc*:file=/tmp/gc.log --sun-misc-unsafe-memory-access=allow"
 
 x-app-depends: &app-depends
   kafka:
@@ -138,7 +141,7 @@ services:
     restart: "no"
 
   azurite:
-    image: mcr.microsoft.com/azure-storage/azurite:latest
+    image: mcr.microsoft.com/azure-storage/azurite:${AZURITE_VERSION:-3.37.0}
     container_name: psl-azurite
     command: ["azurite-blob", "--blobHost", "0.0.0.0", "--blobPort", "10000", "--skipApiVersionCheck", "--disableProductStyleUrl", "--location", "/data"]
     ports:

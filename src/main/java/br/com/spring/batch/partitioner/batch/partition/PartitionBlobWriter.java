@@ -12,10 +12,10 @@ public class PartitionBlobWriter {
 
     private static final long NANOS_PER_MILLI = 1_000_000L;
 
-    private final PartitionTransfer transfer;
+    private final PartitionCopy transfer;
     private final BlobPaths paths;
 
-    public PartitionBlobWriter(PartitionTransfer transfer, BlobPaths paths) {
+    public PartitionBlobWriter(PartitionCopy transfer, BlobPaths paths) {
         this.transfer = transfer;
         this.paths = paths;
     }

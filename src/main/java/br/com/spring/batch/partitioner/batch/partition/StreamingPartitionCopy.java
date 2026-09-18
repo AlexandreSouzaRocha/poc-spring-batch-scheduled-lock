@@ -17,7 +17,7 @@ import br.com.spring.batch.partitioner.storage.BlobWriter;
 import br.com.spring.batch.partitioner.storage.BlockUpload;
 import br.com.spring.batch.partitioner.support.log.RequestContext;
 
-public class PartitionTransfer {
+public class StreamingPartitionCopy implements PartitionCopy {
 
     private static final int HEADER_BLOCK_INDEX = 0;
     private static final int FIRST_DATA_BLOCK_INDEX = 1;
@@ -27,13 +27,14 @@ public class PartitionTransfer {
     private final int blockSizeBytes;
     private final int threads;
 
-    public PartitionTransfer(BlobReader reader, BlobWriter writer, int blockSizeBytes, int threads) {
+    public StreamingPartitionCopy(BlobReader reader, BlobWriter writer, int blockSizeBytes, int threads) {
         this.reader = reader;
         this.writer = writer;
         this.blockSizeBytes = blockSizeBytes;
         this.threads = threads;
     }
 
+    @Override
     public long copy(String sourcePath, ByteRange range, String targetPath, byte[] header, ProgressCounter progress) {
         PartitionChunks chunks = PartitionChunks.of(range, threads, blockSizeBytes, FIRST_DATA_BLOCK_INDEX);
         try (BlockUpload upload = writer.openBlocks(targetPath)) {
@@ -53,7 +54,7 @@ public class PartitionTransfer {
                             () -> copyChunk(sourcePath, chunk, upload, progress))))
                     .toList()
                     .stream()
-                    .mapToLong(PartitionTransfer::await)
+                    .mapToLong(StreamingPartitionCopy::await)
                     .sum();
         }
     }

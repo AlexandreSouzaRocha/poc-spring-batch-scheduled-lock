@@ -53,7 +53,15 @@ public record AppProperties(
             @Min(1) int maxConcurrentFiles,
             @Min(1) int filesPerCycle,
             @Min(1) int threadsPerPartition,
-            @Min(0) int progressIntervalSeconds) {
+            @Min(0) int progressIntervalSeconds,
+            boolean serverSideCopy,
+            @Min(1) int serverSideBlockSizeMb) {
+
+        private static final int MEGABYTE = 1024 * 1024;
+
+        public int serverSideBlockSizeBytes() {
+            return serverSideBlockSizeMb * MEGABYTE;
+        }
     }
 
     public record KafkaSettings(
