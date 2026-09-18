@@ -161,6 +161,14 @@ print_metrics() {
     | sed -E 's/ level=[A-Z]+ logger=[^ ]+ thread=[^ ]+ context=metrics operation=[a-z.]+//; s/ msg="[^"]*"//; s/ (data|ex)=.*$//; s/^/  /'
 }
 
+power_state() {
+  local source percent low
+  source=$(pmset -g batt 2>/dev/null | head -1 | sed -E "s/.*'(.*)'.*/\1/")
+  percent=$(pmset -g batt 2>/dev/null | grep -oE '[0-9]+%' | head -1)
+  low=$(pmset -g 2>/dev/null | awk '/lowpowermode/ {print $2}')
+  echo "fonte=${source:-desconhecida} bateria=${percent:-na} lowpower=${low:-na}"
+}
+
 disk_free_gb() {
   docker run --rm alpine sh -c 'df -P / | awk "NR==2 {print int(\$4 / 1048576)}"'
 }

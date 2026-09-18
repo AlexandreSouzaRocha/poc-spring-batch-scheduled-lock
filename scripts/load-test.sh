@@ -108,6 +108,7 @@ run_size() {
   timeout=$(timeout_of "$lines")
 
   info "=== ${size}MM linhas (${file_gb} GB por arquivo) — precisa de ~${needed} GB livres ==="
+  info "energia: $(power_state)"
   free=$(disk_free_gb)
   if [ "$free" -lt "$needed" ]; then
     printf '  \033[31mABORTADO\033[0m disco livre %s GB < necessario %s GB\n' "$free" "$needed"
@@ -186,6 +187,8 @@ write_header() {
   fi
   {
     echo "# Teste de carga — $(date +'%Y-%m-%d %H:%M')"
+    echo
+    echo "Energia no inicio: $(power_state)"
     echo
     echo "Particoes: ${PARTITION_COUNT:-10} · threads/particao: ${PARTITION_THREADS:-1} · instancias: ${PARTITIONER_INSTANCES:-2} · memoria: ${PARTITIONER_MEMORY:-2g} · CPUs: ${PARTITIONER_CPUS:-2} · azurite threads: ${AZURITE_THREADS:-16} · OTEL: ${OTEL_ENABLED:-true}"
     echo
