@@ -347,3 +347,60 @@ Uma comparação ficou comprometida por esse efeito: a execução do Azurite 3.3
 já degradado, então **a diferença de desempenho entre as versões 3.35 e 3.37 não está estabelecida**
 por esses dados. Por isso a fase 2 compara streaming e cópia server-side **dentro** da 3.37, onde o
 delta mede a técnica de cópia e não a versão do emulador.
+
+## Tuning: o que mexer e o que não mexer
+
+Depois de descobrir que a máquina na bateria distorcia as medições, a bateria de tuning foi refeita
+com o host na tomada. Três réplicas da mesma configuração deram 153,5 s, 153,2 s e 146,1 s —
+**dispersão de 5,1%**, contra 31% na bateria. Só a partir daí as comparações abaixo passaram a
+significar alguma coisa; qualquer diferença menor que ~5% continua sendo ruído.
+
+Todas as execuções: 250MM, 10 partições × 4 threads, 4 GB, 4 vCPUs, instância única, OTEL ligado,
+Azurite 3.35.
+
+| Variação | Particionamento | vs. melhor |
+|---|---|---|
+| **10 partições, bloco 8 MB, G1** | **153,2 s** (mediana de 3) | — |
+| 8 partições, bloco 8 MB | 154,4 s | igual (0,8%) |
+| Bloco de 4 MB | 161,2 s | −5% |
+| Bloco de 16 MB | 170,3 s | −11% |
+| 15 partições | 208,6 s | −36% |
+| OTEL desligado | 143,4 s | +6% |
+
+Conclusões:
+
+* **Mais partições não ajudam.** Entre 8 e 10 não há diferença mensurável, e 15 degrada 36%: com
+  60 streams simultâneos o Azurite vira gargalo de requisições. O `app.partition.count` foi mantido
+  em 10.
+* **O bloco de 8 MB é ótimo nos dois sentidos.** Diminuir para 4 MB aumenta o número de requisições;
+  aumentar para 16 MB multiplica a memória transiente e a pressão de GC. Os dois lados pioram.
+* **O agente do OpenTelemetry custa 6%.** Como produção roda com collectors ativos, a configuração
+  recomendada mantém o agente ligado e o número oficial é o com OTEL.
+* **O G1 vence pelo perfil de pausa, não pelo relógio.** A diferença de tempo total contra o
+  ParallelGC (3–5%) está dentro do ruído, mas os logs de GC medem o fenômeno diretamente e não
+  dependem de comparar execuções.
+
+### G1 contra ParallelGC
+
+Mesma configuração, mudando apenas o coletor:
+
+| GC | Tempo | Pausas | Total STW | Full GCs | Pausa máxima |
+|---|---|---|---|---|---|
+| ParallelGC | 170,3 s | 432 | 8.123 ms | **67** | 144,6 ms |
+| **G1GC** | 161,0 s | 686 | **4.252 ms** | **8** | **79,4 ms** |
+
+O G1 faz mais pausas, porém muito mais curtas: metade do stop-the-world total e praticamente nenhum
+Full GC. Em uma execução com bloco de 16 MB e 15 partições, o ParallelGC chegou a **244 Full GCs**
+somando 15,5 s — quase todas as pausas do job. O G1 é o coletor recomendado.
+
+### Configuração recomendada
+
+| Parâmetro | Valor | Motivo |
+|---|---|---|
+| `app.partition.count` | `10` | 8 e 10 empatam; 15 degrada 36% |
+| `app.partition.threads-per-partition` | `4` | 3,08× sobre 1 thread — o maior efeito medido |
+| `app.blob.upload-block-size-mb` | `8` | Ótimo; 4 MB e 16 MB pioram |
+| GC | `G1` | Metade do stop-the-world e 8 Full GCs contra 67 |
+| Memória do container | `4 GB` | `partições × threads × bloco` = 320 MB de buffers + heap |
+| CPUs do container | `4` | Teto disponível em produção |
+| OpenTelemetry | ligado | Cenário real; custa 6% |
