@@ -145,7 +145,44 @@ A publicação é *at-least-once*: se o processo morrer entre o ack do Kafka e o
 Mongo, a mensagem é reenviada. O `blob_path` é único por partição e serve de chave de
 idempotência para o consumidor.
 
-## ShedLock com nomenclatura configurável
+## ShedLock: um lock por tipo de movimento
+
+Não existe lock de ciclo. Cada tipo de movimento tem o seu próprio lock, derivado de
+`app.scheduler.file-processing.lock-name`:
+
+| Lock | Protege |
+|---|---|
+| `file-processing-poll` | A listagem do blob e o registro dos arquivos novos |
+| `file-processing-fechado` | O processamento dos arquivos FECHADO |
+| `file-processing-aberto` | O processamento dos arquivos ABERTO |
+| `file-processing-ultima` | O processamento dos arquivos ULTIMA |
+| `file-processing-saldo` | O processamento dos arquivos SALDO |
+| `file-processing-desconhecido` | Arquivos que o poll não conseguiu classificar |
+
+O efeito é duplo:
+
+* **Tipos diferentes rodam em paralelo**, inclusive em instâncias diferentes, porque cada um disputa
+  um lock distinto. É o que permite duas instâncias trabalharem ao mesmo tempo.
+* **O mesmo tipo nunca roda duas vezes em paralelo**, o que preserva a ordem por data dentro do
+  tipo: o FECHADO de 18/09 termina antes de o de 19/09 começar.
+
+Dentro de um lock, todos os arquivos pendentes daquele tipo são processados em sequência, na ordem
+da fila, sem soltar e readquirir o lock a cada arquivo.
+
+`app.partition.max-concurrent-types` limita quantos tipos uma única instância processa ao mesmo
+tempo (padrão `1`). O paralelismo entre instâncias não depende dessa configuração.
+
+O registro dos arquivos é idempotente (`insertIfAbsent`), então o lock de poll existe apenas para
+evitar listagens redundantes do blob, não por correção.
+
+Como cada lock é adquirido pela API programática do ShedLock (`LockingTaskExecutor`), a validade é
+a mesma do lock de ciclo anterior (`lock-at-most-for`), renovada pelo keep-alive enquanto o
+processamento durar.
+
+A collection e os nomes dos campos continuam configuráveis por `app.shedlock.*`, com o provider
+próprio descrito abaixo.
+
+### Provider customizado
 
 O `MongoLockProvider` oficial deixa trocar só o nome da collection. Os campos são fixos:
 `_id`, `lockUntil`, `lockedAt` e `lockedBy`. `ConfigurableMongoLockProvider` implementa
@@ -160,8 +197,7 @@ faz as operações via `MongoTemplate`, usando os nomes definidos em `app.shedlo
 
 * **Duplicate key:** se o campo do nome não for `_id`, o store cria um índice único nele. Sem esse índice, o upsert não gera duplicate key e duas instâncias conseguiriam o lock.
 * **Write concern:** o `MongoTemplate` do lock usa `WriteConcern.MAJORITY`.
-* **Keep-alive:** o `KeepAliveLockProvider` renova o lock a cada `lock-at-most-for / 2` enquanto o ciclo roda. Um arquivo grande não perde o lock, e um lock órfão expira em até `lock-at-most-for`.
-* **Um lock só:** o ciclo faz polling e particionamento em sequência, então existe um único lock (`file-processing`). Enquanto uma instância processa um arquivo grande, a outra não descobre arquivos novos; eles entram no ciclo seguinte.
+* **Keep-alive:** o `KeepAliveLockProvider` renova o lock a cada `lock-at-most-for / 2` enquanto o processamento roda. Um arquivo grande não perde o lock, e um lock órfão expira em até `lock-at-most-for`.
 
 ```yaml
 app:
@@ -173,6 +209,7 @@ app:
       locked-at: locked_at
       locked-by: locked_by
 ```
+
 
 ## Infraestrutura criada fora da aplicação
 

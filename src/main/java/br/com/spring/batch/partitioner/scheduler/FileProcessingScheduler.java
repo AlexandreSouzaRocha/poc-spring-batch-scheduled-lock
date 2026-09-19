@@ -1,8 +1,9 @@
 package br.com.spring.batch.partitioner.scheduler;
 
+import br.com.spring.batch.partitioner.config.properties.SchedulerProperties;
+import br.com.spring.batch.partitioner.lock.ProcessingLock;
 import br.com.spring.batch.partitioner.service.BlobPollingService;
 import br.com.spring.batch.partitioner.service.PartitionCycleService;
-import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 
 import org.springframework.context.annotation.Profile;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -14,28 +15,30 @@ public class FileProcessingScheduler {
 
     private static final String SCHEDULER = "file-processing";
 
-    private final LockedCycleRunner cycleRunner;
+    private final CycleRunner cycleRunner;
     private final BlobPollingService pollingService;
     private final PartitionCycleService cycleService;
+    private final ProcessingLock processingLock;
+    private final SchedulerProperties properties;
 
-    public FileProcessingScheduler(LockedCycleRunner cycleRunner, BlobPollingService pollingService,
-                                   PartitionCycleService cycleService) {
+    public FileProcessingScheduler(CycleRunner cycleRunner, BlobPollingService pollingService,
+                                   PartitionCycleService cycleService, ProcessingLock processingLock,
+                                   SchedulerProperties properties) {
         this.cycleRunner = cycleRunner;
         this.pollingService = pollingService;
         this.cycleService = cycleService;
+        this.processingLock = processingLock;
+        this.properties = properties;
     }
 
     @Scheduled(initialDelayString = "${app.scheduler.file-processing.initial-delay}",
             fixedDelayString = "${app.scheduler.file-processing.interval}")
-    @SchedulerLock(name = "${app.scheduler.file-processing.lock-name}",
-            lockAtMostFor = "${app.scheduler.file-processing.lock-at-most-for}",
-            lockAtLeastFor = "${app.scheduler.file-processing.lock-at-least-for}")
     public void processFiles() {
         cycleRunner.run(SCHEDULER, "cycle", this::pollAndPartition);
     }
 
     private void pollAndPartition() {
-        pollingService.poll();
+        processingLock.tryRun(properties.pollLockName(), pollingService::poll);
         cycleService.processPendingFiles();
     }
 }

@@ -52,6 +52,6 @@ check "mensagens publicadas no Kafka = $TOTAL_PARTITIONS (delta: $((KAFKA_AFTER 
 info "auditoria do lock (ciclos por instância e sobreposição)"
 AUDIT=$(python3 "$(dirname "$0")/lock-audit.py" "$START")
 echo "$AUDIT"
-check "nenhum ciclo executado simultaneamente pelas duas instâncias" "$(echo "$AUDIT" | grep -q '^overlaps=0$' && echo true || echo false)"
+check "nenhum lock mantido por duas instâncias ao mesmo tempo" "$(echo "$AUDIT" | grep -q '^overlaps=0$' && echo true || echo false)"
 
 finish

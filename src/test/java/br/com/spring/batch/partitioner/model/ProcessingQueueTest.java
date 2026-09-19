@@ -69,6 +69,21 @@ class ProcessingQueueTest {
         assertThat(names(queue)).containsExactly("MOV_FECHADO_2026-09-18", "MOV_ABERTO_2026-09-18");
     }
 
+    @Test
+    @DisplayName("agrupa por tipo preservando a ordem da fila e a ordem dentro do grupo")
+    void groupsByMovementTypeKeepingOrder() {
+        ProcessingQueue queue = ProcessingQueue.of(List.of(
+                file(MovementType.ABERTO, "2026-09-19"),
+                file(MovementType.FECHADO, "2026-09-19"),
+                file(MovementType.ABERTO, "2026-09-18"),
+                file(MovementType.FECHADO, "2026-09-18")), List.of(), LIMIT);
+
+        assertThat(queue.byMovementGroup().keySet()).containsExactly("fechado", "aberto");
+        assertThat(queue.byMovementGroup().get("fechado"))
+                .extracting(ReceivedFileDocument::fileName)
+                .containsExactly("MOV_FECHADO_2026-09-18", "MOV_FECHADO_2026-09-19");
+    }
+
     private static List<String> names(ProcessingQueue queue) {
         return queue.files().stream().map(ReceivedFileDocument::fileName).toList();
     }

@@ -1,9 +1,14 @@
 package br.com.spring.batch.partitioner.model.queue;
 
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
+import br.com.spring.batch.partitioner.model.document.MovementInfo;
 import br.com.spring.batch.partitioner.model.document.ReceivedFileDocument;
 
 public record ProcessingQueue(List<ReceivedFileDocument> files, Optional<ReceivedFileDocument> blockedBy) {
@@ -18,6 +23,21 @@ public record ProcessingQueue(List<ReceivedFileDocument> files, Optional<Receive
                 .filter(file -> isReleased(file, blocker))
                 .limit(limit)
                 .toList(), blocker);
+    }
+
+    public static final String UNKNOWN_GROUP = "desconhecido";
+
+    public Map<String, List<ReceivedFileDocument>> byMovementGroup() {
+        return files.stream().collect(Collectors.groupingBy(ProcessingQueue::groupOf, LinkedHashMap::new,
+                Collectors.toList()));
+    }
+
+    private static String groupOf(ReceivedFileDocument file) {
+        MovementInfo movement = file.movement();
+        if (movement == null) {
+            return UNKNOWN_GROUP;
+        }
+        return movement.type().name().toLowerCase(Locale.ROOT);
     }
 
     public boolean isEmpty() {

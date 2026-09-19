@@ -1,11 +1,14 @@
 package br.com.spring.batch.partitioner.service;
 
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 
 import br.com.spring.batch.partitioner.config.properties.AppProperties.PartitionSettings;
+import br.com.spring.batch.partitioner.config.properties.SchedulerProperties;
+import br.com.spring.batch.partitioner.lock.ProcessingLock;
 import br.com.spring.batch.partitioner.model.document.ReceivedFileDocument;
 import br.com.spring.batch.partitioner.model.queue.ProcessingQueue;
 import br.com.spring.batch.partitioner.repository.OriginalFileRepository;
@@ -22,12 +25,17 @@ public class PartitionCycleService {
     private final OriginalFileRepository repository;
     private final FilePartitionLauncher launcher;
     private final PartitionSettings settings;
+    private final ProcessingLock processingLock;
+    private final SchedulerProperties scheduler;
 
     public PartitionCycleService(OriginalFileRepository repository, FilePartitionLauncher launcher,
-                                 PartitionSettings settings) {
+                                 PartitionSettings settings, ProcessingLock processingLock,
+                                 SchedulerProperties scheduler) {
         this.repository = repository;
         this.launcher = launcher;
         this.settings = settings;
+        this.processingLock = processingLock;
+        this.scheduler = scheduler;
     }
 
     public void processPendingFiles() {
@@ -39,11 +47,11 @@ public class PartitionCycleService {
             return;
         }
         long start = System.currentTimeMillis();
-        log.info("cycle.start").field("files", queue.size()).field("maxConcurrentFiles", settings.maxConcurrentFiles())
+        log.info("cycle.start").field("files", queue.size()).field("maxConcurrentTypes", settings.maxConcurrentTypes())
                 .data("fileIds", queue.files().stream().map(ReceivedFileDocument::id).toList())
                 .data("ordem", queue.files().stream().map(ReceivedFileDocument::fileName).toList())
                 .log("iniciando ciclo de particionamento");
-        dispatch(queue.files());
+        dispatch(queue.byMovementGroup());
         log.info("cycle.finish").field("files", queue.size()).field("durationMs", System.currentTimeMillis() - start)
                 .log("ciclo de particionamento concluído");
     }
@@ -56,19 +64,24 @@ public class PartitionCycleService {
                 .log("fila bloqueada: arquivos posteriores só serão processados após a resolução deste");
     }
 
-    private void dispatch(List<ReceivedFileDocument> files) {
-        Semaphore permits = new Semaphore(settings.maxConcurrentFiles());
+    private void dispatch(Map<String, List<ReceivedFileDocument>> groups) {
+        Semaphore permits = new Semaphore(settings.maxConcurrentTypes());
         try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
-            files.forEach(file -> executor.submit(RequestContext.propagate(() -> launchWithPermit(file, permits))));
+            groups.forEach((group, files) ->
+                    executor.submit(RequestContext.propagate(() -> launchGroup(group, files, permits))));
         }
     }
 
-    private void launchWithPermit(ReceivedFileDocument file, Semaphore permits) {
+    private void launchGroup(String group, List<ReceivedFileDocument> files, Semaphore permits) {
         permits.acquireUninterruptibly();
         try {
-            RequestContext.run(RequestContext.childRequestId(file.id()), () -> launcher.launch(file));
+            processingLock.tryRun(scheduler.lockNameFor(group), () -> files.forEach(this::launch));
         } finally {
             permits.release();
         }
+    }
+
+    private void launch(ReceivedFileDocument file) {
+        RequestContext.run(RequestContext.childRequestId(file.id()), () -> launcher.launch(file));
     }
 }

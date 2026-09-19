@@ -3,32 +3,29 @@ package br.com.spring.batch.partitioner.scheduler;
 import br.com.spring.batch.partitioner.config.properties.ShedLockProperties;
 import br.com.spring.batch.partitioner.support.log.RequestContext;
 import br.com.spring.batch.partitioner.support.log.StructuredLogger;
-import net.javacrumbs.shedlock.core.LockAssert;
 
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 @Component
 @Profile("partitioner")
-public class LockedCycleRunner {
+public class CycleRunner {
 
-    private static final StructuredLogger log = StructuredLogger.of(LockedCycleRunner.class, "scheduler");
+    private static final StructuredLogger log = StructuredLogger.of(CycleRunner.class, "scheduler");
 
     private final String owner;
 
-    public LockedCycleRunner(ShedLockProperties properties) {
+    public CycleRunner(ShedLockProperties properties) {
         this.owner = properties.lockedBy();
     }
 
     public void run(String scheduler, String requestPrefix, Runnable cycle) {
-        RequestContext.run(RequestContext.newRequestId(requestPrefix), () -> runLocked(scheduler, cycle));
+        RequestContext.run(RequestContext.newRequestId(requestPrefix), () -> runCycle(scheduler, cycle));
     }
 
-    private void runLocked(String scheduler, Runnable cycle) {
-        LockAssert.assertLocked();
+    private void runCycle(String scheduler, Runnable cycle) {
         long start = System.currentTimeMillis();
-        log.info("lock.acquired").field("scheduler", scheduler).field("owner", owner)
-                .log("lock obtido; executando ciclo");
+        log.info("cycle.start").field("scheduler", scheduler).field("owner", owner).log("ciclo iniciado");
         try {
             cycle.run();
         } catch (RuntimeException e) {
@@ -36,7 +33,7 @@ public class LockedCycleRunner {
                     .log("falha no ciclo agendado");
         } finally {
             log.info("cycle.end").field("scheduler", scheduler).field("owner", owner)
-                    .field("durationMs", System.currentTimeMillis() - start).log("ciclo encerrado; liberando lock");
+                    .field("durationMs", System.currentTimeMillis() - start).log("ciclo encerrado");
         }
     }
 }

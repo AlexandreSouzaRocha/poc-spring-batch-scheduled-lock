@@ -66,7 +66,7 @@ Tipos: `ABERTO`, `FECHADO`, `SALDO`, `ULTIMA`. **Cada partição recebe uma cóp
 |---|---|---|---|
 | `app.partition.count` | `APP_PARTITION_COUNT` | `10` | Arquivos gerados por arquivo grande |
 | `app.partition.max-attempts` | `APP_PARTITION_MAX_ATTEMPTS` | `3` | Tentativas antes de mover para `erros/` |
-| `app.partition.max-concurrent-files` | `APP_PARTITION_MAX_CONCURRENT_FILES` | `1` | Arquivos grandes em paralelo no mesmo ciclo |
+| `app.partition.max-concurrent-types` | `APP_PARTITION_MAX_CONCURRENT_TYPES` | `1` | Tipos de movimento processados em paralelo por instância |
 | `app.partition.threads-per-partition` | `APP_PARTITION_THREADS_PER_PARTITION` | `1` | Threads que enviam trechos da mesma partição |
 | `app.partition.progress-interval-seconds` | `APP_PARTITION_PROGRESS_INTERVAL_SECONDS` | `10` | Intervalo dos logs de progresso (`0` desliga) |
 | `app.scheduler.file-processing.interval` | `APP_SCHEDULER_INTERVAL` | `30s` | Intervalo do ciclo (polling + particionamento) |

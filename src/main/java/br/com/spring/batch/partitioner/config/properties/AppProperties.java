@@ -50,7 +50,7 @@ public record AppProperties(
     public record PartitionSettings(
             @Min(1) int count,
             @Min(1) int maxAttempts,
-            @Min(1) int maxConcurrentFiles,
+            @Min(1) int maxConcurrentTypes,
             @Min(1) int filesPerCycle,
             @Min(1) int threadsPerPartition,
             @Min(0) int progressIntervalSeconds,

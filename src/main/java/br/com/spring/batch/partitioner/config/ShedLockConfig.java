@@ -6,7 +6,9 @@ import br.com.spring.batch.partitioner.lock.LockKeepAliveExecutor;
 import br.com.spring.batch.partitioner.lock.MongoLockStore;
 import com.mongodb.ReadPreference;
 import com.mongodb.WriteConcern;
+import net.javacrumbs.shedlock.core.DefaultLockingTaskExecutor;
 import net.javacrumbs.shedlock.core.LockProvider;
+import net.javacrumbs.shedlock.core.LockingTaskExecutor;
 import net.javacrumbs.shedlock.spring.annotation.EnableSchedulerLock;
 import net.javacrumbs.shedlock.support.KeepAliveLockProvider;
 
@@ -37,6 +39,11 @@ public class ShedLockConfig {
     @Bean
     public LockKeepAliveExecutor lockKeepAliveExecutor() {
         return new LockKeepAliveExecutor();
+    }
+
+    @Bean
+    public LockingTaskExecutor lockingTaskExecutor(LockProvider lockProvider) {
+        return new DefaultLockingTaskExecutor(lockProvider);
     }
 
     @Bean
