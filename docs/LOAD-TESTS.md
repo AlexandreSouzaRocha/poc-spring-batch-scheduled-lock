@@ -449,12 +449,21 @@ derrubou essa leitura:
 | 1 | 3.35 | 249 s | 147,9 s |
 | 2 | 3.37 | 536 s | 451,8 s |
 | 3 | 3.37 | 534 s | 472,0 s |
-| 4 | **3.35** | **1.178 s** | — |
+| 4 | **3.35** | **1.178 s** | **187,7 s** |
 
-A quarta execução, na versão supostamente rápida, foi a **mais lenta de todas**. Como disco e
-energia estavam em melhor estado que durante a execução rápida (`Docker.raw` em 82 GB contra 90 GB,
-host com 136 GiB livres contra 126 GiB, máquina na tomada), nenhuma das duas explicações candidatas
-se sustenta.
+A quarta execução, na versão supostamente rápida, teve a **geração mais lenta de todas**. Como disco
+e energia estavam em melhor estado que durante a execução rápida (`Docker.raw` em 82 GB contra
+90 GB, host com 136 GiB livres contra 126 GiB, máquina na tomada), nenhuma das duas explicações
+candidatas se sustenta.
+
+As duas cargas degradaram de formas diferentes, o que é em si um achado: a **geração** piorou 4,7×
+(249 → 1.178 s) enquanto o **particionamento** piorou 27% (147,9 → 187,7 s). Geração é um fluxo
+sequencial único; particionamento são 40 streams concorrentes. O ambiente penaliza muito mais o
+primeiro.
+
+Por isso a comparação de versões fica em aberto e não negada: mesmo degradada, a 3.35 particiona em
+187,7 s contra 451,8 s da 3.37 — um sinal que sobrevive à degradação. Uma amostra degradada contra
+duas, com ruído que chega a 4,7×, não é base para concluir.
 
 **A conclusão honesta é sobre o instrumento, não sobre o Azurite:** o ambiente local perde entre 3 e
 5× de desempenho ao longo de horas de carga pesada, sem causa identificada e sem sinal nos

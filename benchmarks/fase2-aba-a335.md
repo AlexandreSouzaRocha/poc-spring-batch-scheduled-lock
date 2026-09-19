@@ -6,3 +6,4 @@ Particoes: 10 · threads/particao: 4 · instancias: 1 · memoria: 4g · CPUs: 4 
 
 | tamanho | linhas | arquivo GB | geracao s | particao ms | particao MB/s | linhas/s | job ms | job MB/s | particoes | threads | tentativas | kafka | pico mem MB | disco livre min GB | status |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 250MM | 250000000 | 35.16 | 1178 | 187651 | 191.85 | 1332260 | 188443 | 191.05 | 10 | 4 | 1 | 10 | 3423 | 127 | COMPLETED |
