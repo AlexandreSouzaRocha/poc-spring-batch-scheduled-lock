@@ -393,6 +393,38 @@ O G1 faz mais pausas, porém muito mais curtas: metade do stop-the-world total e
 Full GC. Em uma execução com bloco de 16 MB e 15 partições, o ParallelGC chegou a **244 Full GCs**
 somando 15,5 s — quase todas as pausas do job. O G1 é o coletor recomendado.
 
+### O bloco de leitura e o teto de memória
+
+O bloco de **leitura** (`app.blob.read-block-size-mb`) governa o tamanho das requisições de download
+do arquivo original — metade do I/O do particionamento. Foi o último parâmetro testado e o de efeito
+mais forte:
+
+| Bloco de leitura | Particionamento | Observação |
+|---|---|---|
+| 4 MB | 212,9 s | **49% pior**: ler 35 GB exige mais de 8.700 requisições |
+| **8 MB** | **143,0 s** | Referência |
+| 16 MB | 139,6 s | +2,4%, dentro da dispersão de 5,1% |
+| 32 MB | — | **`OutOfMemoryError`**: o job trava |
+
+O extremo inferior mostra que **o gargalo é taxa de requisições**, não banda: quadruplicar o número
+de chamadas ao Azurite custa metade do throughput. O extremo superior mostra onde está o teto real,
+que é de memória: com 32 MB, cada buffer vira alocação *humongous* no G1, e 40 streams simultâneos
+(10 partições × 4 threads) somam 1,28 GB só de leitura. O log de GC registrou 772 regiões humongous
+com o heap em 2.542 MB de 2.868 MB.
+
+**Fica 8 MB.** O ganho de 16 MB é incerto (dentro do ruído) e colocaria a aplicação a um passo do
+estouro de heap, num container que em produção tem teto de 4 GB.
+
+#### Robustez: o OOM trava em vez de falhar
+
+O `OutOfMemoryError` ocorreu nas threads internas do SDK do Azure. O `RetriableDownloadFlux` esgotou
+as retentativas e o job ficou **pendurado**, com CPU em 0,16% e sem progresso — não falhou, não
+entrou em retentativa, não liberou o arquivo. Não há timeout nas operações de blob.
+
+Em produção isso significa que uma pressão de memória inesperada pode deixar um arquivo preso em
+`PARTITIONING` até a expiração do lock. Recomendação para o projeto real: **configurar timeout nas
+chamadas do SDK do Azure** e tratar `Error` além de `Exception` na agregação das partições.
+
 ### Configuração recomendada
 
 | Parâmetro | Valor | Motivo |

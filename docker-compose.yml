@@ -15,6 +15,7 @@ x-app-env: &app-env
   APP_PARTITION_SERVER_SIDE_COPY: ${PARTITION_SERVER_SIDE_COPY:-false}
   APP_PARTITION_SERVER_SIDE_BLOCK_SIZE_MB: ${PARTITION_SERVER_SIDE_BLOCK_MB:-64}
   APP_BLOB_UPLOAD_BLOCK_SIZE_MB: ${PARTITION_BLOCK_MB:-8}
+  APP_BLOB_READ_BLOCK_SIZE_MB: ${PARTITION_READ_BLOCK_MB:-8}
   APP_SCHEDULER_INTERVAL: ${SCHEDULER_INTERVAL:-30s}
   OTEL_JAVAAGENT_ENABLED: ${OTEL_ENABLED:-true}
   JAVA_TOOL_OPTIONS: "-javaagent:/app/opentelemetry-javaagent.jar -XX:+Use${JVM_GC:-Parallel}GC -XX:+UseCompactObjectHeaders -XX:MaxRAMPercentage=70.0 -XX:InitialRAMPercentage=70.0 -XX:+PrintCommandLineFlags -Xlog:gc*:file=/tmp/gc.log --sun-misc-unsafe-memory-access=allow"
