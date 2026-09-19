@@ -88,10 +88,17 @@ Pontos de falha: `VALIDATE`, `CLEANUP`, `PARTITION`, `REGISTER`, `MOVE`, `PUBLIS
 ## Testes de carga
 
 ```bash
+# 1. reinicie o Docker Desktop  <- obrigatorio antes de cada bateria
 make prune                                   # recupera cache de build e imagens orfas
 make disk                                    # disco livre na VM do Docker + uso por pasta no blob
 make load-test SIZES="50 100 200 250"        # benchmark, limpando o ambiente entre os tamanhos
 ```
+
+> **Reinicie o Docker Desktop antes de cada bateria.** O daemon acumula degradação ao longo de horas
+> de carga pesada: numa medição, a geração do arquivo de 250MM passou de 229 s para 1.178 s (5,1×)
+> sem nenhuma mudança de configuração, com disco e energia em bom estado. Reiniciar o Docker
+> restaurou o desempenho integralmente. Sem esse cuidado, qualquer comparação entre configurações
+> mede o cansaço do ambiente em vez da mudança testada.
 
 `scripts/load-test.sh` roda um tamanho por vez e, para cada um:
 

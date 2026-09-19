@@ -465,10 +465,21 @@ Por isso a comparação de versões fica em aberto e não negada: mesmo degradad
 187,7 s contra 451,8 s da 3.37 — um sinal que sobrevive à degradação. Uma amostra degradada contra
 duas, com ruído que chega a 4,7×, não é base para concluir.
 
-**A conclusão honesta é sobre o instrumento, não sobre o Azurite:** o ambiente local perde entre 3 e
-5× de desempenho ao longo de horas de carga pesada, sem causa identificada e sem sinal nos
-indicadores óbvios. Comparar versões exigiria reiniciar o ambiente entre medições e alternar a ordem
-várias vezes.
+**A causa foi identificada depois: o Docker Desktop.** Reiniciá-lo, sem nenhuma outra mudança,
+restaurou integralmente o desempenho:
+
+| Momento | Geração | Particionamento |
+|---|---|---|
+| Antes do restart | 1.178 s | 187,7 s |
+| **Depois do restart** | **229 s** | **143,0 s** |
+| Recuperação | 5,1× | 1,31× |
+
+Os 143,0 s são o **melhor resultado de 250MM de toda a sessão** — melhor que os 147,9 s da bateria
+final. O `Docker.raw` também encolheu de 82 GB para 64 GB apenas com o restart, sem nenhum comando
+de limpeza: o Docker Desktop compacta o arquivo esparso ao encerrar.
+
+Disco e energia estavam em bom estado nas duas medições, então nenhuma das duas explicações
+anteriores se sustenta. **A degradação se acumula dentro do daemon.**
 
 O que continua válido apesar disso:
 
