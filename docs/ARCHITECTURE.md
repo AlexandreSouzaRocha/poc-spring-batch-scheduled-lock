@@ -107,10 +107,18 @@ teste de carga, em que um `OutOfMemoryError` dentro do SDK deixou o particioname
 CPU em 0,16% e sem progresso, em vez de falhar. O cliente do blob é construído com limites em dois
 níveis:
 
-| Nível | Configuração | Protege de |
+| Fase da chamada | Parâmetro | Natureza |
 |---|---|---|
-| Storage SDK | `RequestRetryOptions` com `tryTimeout` | Uma tentativa individual que não termina |
-| HTTP (Netty) | `responseTimeout`, `readTimeout`, `writeTimeout` | Conexão que para de responder no meio |
+| Estabelecer a conexão TCP | `connectTimeout` | Duração total da fase |
+| Enviar o corpo da requisição | `writeTimeout` | **Ociosidade entre blocos** |
+| Esperar os headers da resposta | `responseTimeout` | Duração total da fase |
+| Ler o corpo da resposta | `readTimeout` | **Ociosidade entre blocos** |
+| A tentativa inteira | `tryTimeout` (`RequestRetryOptions`) | **Duração total da tentativa** |
+
+A distinção importa: `writeTimeout` e `readTimeout` medem **ociosidade entre blocos**, não duração
+total. Uma transferência lenta que continua progredindo nunca é interrompida por eles — o que é
+desejável, porque não mata o download legítimo de um arquivo grande, mas significa que sozinhos eles
+não limitam o tempo total. Quem limita o total é o `tryTimeout`.
 
 ```yaml
 app:
@@ -119,7 +127,8 @@ app:
     try-timeout-seconds: 60        # teto de cada tentativa
     retry-delay-seconds: 2
     max-retry-delay-seconds: 30
-    response-timeout-seconds: 60   # teto no nível HTTP
+    response-timeout-seconds: 60   # headers da resposta
+    connect-timeout-seconds: 10    # estabelecer a conexão
 ```
 
 O `tryTimeout` limita **cada tentativa**, não o conjunto: com 3 tentativas, o pior caso de uma

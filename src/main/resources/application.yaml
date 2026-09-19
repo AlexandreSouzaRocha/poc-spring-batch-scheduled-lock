@@ -44,6 +44,7 @@ app:
     retry-delay-seconds: ${APP_BLOB_RETRY_DELAY_SECONDS:2}
     max-retry-delay-seconds: ${APP_BLOB_MAX_RETRY_DELAY_SECONDS:30}
     response-timeout-seconds: ${APP_BLOB_RESPONSE_TIMEOUT_SECONDS:60}
+    connect-timeout-seconds: ${APP_BLOB_CONNECT_TIMEOUT_SECONDS:10}
 
   folders:
     inbox: ${APP_FOLDER_INBOX:entrada}

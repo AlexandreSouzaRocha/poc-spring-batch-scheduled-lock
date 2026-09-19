@@ -52,6 +52,7 @@ public class StorageConfig {
 
     private static HttpClient httpClientOf(BlobSettings settings) {
         return new NettyAsyncHttpClientBuilder()
+                .connectTimeout(settings.connectTimeout())
                 .responseTimeout(settings.responseTimeout())
                 .readTimeout(settings.responseTimeout())
                 .writeTimeout(settings.responseTimeout())

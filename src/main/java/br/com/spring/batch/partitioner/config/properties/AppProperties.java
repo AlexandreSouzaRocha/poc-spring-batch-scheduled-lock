@@ -30,7 +30,8 @@ public record AppProperties(
             @Min(1) int tryTimeoutSeconds,
             @Min(1) int retryDelaySeconds,
             @Min(1) int maxRetryDelaySeconds,
-            @Min(1) int responseTimeoutSeconds) {
+            @Min(1) int responseTimeoutSeconds,
+            @Min(1) int connectTimeoutSeconds) {
 
         private static final int KILOBYTE = 1024;
         private static final int MEGABYTE = KILOBYTE * KILOBYTE;
@@ -49,6 +50,10 @@ public record AppProperties(
 
         public Duration responseTimeout() {
             return Duration.ofSeconds(responseTimeoutSeconds);
+        }
+
+        public Duration connectTimeout() {
+            return Duration.ofSeconds(connectTimeoutSeconds);
         }
 
         public long uploadBlockSizeBytes() {
