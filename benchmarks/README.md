@@ -11,12 +11,17 @@ em [docs/LOAD-TESTS.md](../docs/LOAD-TESTS.md) — este diretório existe para c
 
 ## Como reproduzir
 
+Os padrões do `docker-compose.yml` **já são a configuração recomendada**, então basta:
+
 ```bash
 # 1. reinicie o Docker Desktop — obrigatório, ver docs/TESTING.md
-PARTITION_COUNT=10 PARTITION_THREADS=4 PARTITIONER_MEMORY=4g PARTITIONER_CPUS=4 \
-  PARTITIONER_INSTANCES=1 AZURITE_THREADS=16 PARTITION_BLOCK_MB=8 \
-  OTEL_ENABLED=true JVM_GC=G1 AZURITE_VERSION=3.35.0 \
-  RESULTS_FILE=benchmarks/minha-bateria.md ./scripts/load-test.sh 50 100 200 250
+make load-test SIZES="250"
+```
+
+Use uma única instância para medir sem interferência do paralelismo entre elas:
+
+```bash
+PARTITIONER_INSTANCES=1 make load-test SIZES="50 100 200 250"
 ```
 
 Para analisar o GC de uma execução:

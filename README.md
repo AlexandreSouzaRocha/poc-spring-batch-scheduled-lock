@@ -41,7 +41,7 @@ Testes automatizados:
 make test                                 # unitários + integração do lock (Testcontainers)
 make e2e LINES=5000000 FILES=2            # ponta a ponta com validações no blob, Mongo, Kafka e lock
 make chaos-test SCENARIO=all              # partition-fail, publish-fail, invalid-file, slow-io, kill-owner
-make load-test SIZES="50 100 200 250"     # benchmark por volume, limpando o ambiente entre execuções
+make load-test SIZES="250"                # benchmark de um volume (reinicie o Docker antes)
 ```
 
 `make help` lista todos os alvos. Entre execuções pesadas, `make reset-data` zera blob, Mongo e
@@ -67,7 +67,7 @@ Tipos: `ABERTO`, `FECHADO`, `SALDO`, `ULTIMA`. **Cada partição recebe uma cóp
 | `app.partition.count` | `APP_PARTITION_COUNT` | `10` | Arquivos gerados por arquivo grande |
 | `app.partition.max-attempts` | `APP_PARTITION_MAX_ATTEMPTS` | `3` | Tentativas antes de mover para `erros/` |
 | `app.partition.max-concurrent-types` | `APP_PARTITION_MAX_CONCURRENT_TYPES` | `1` | Tipos de movimento processados em paralelo por instância |
-| `app.partition.threads-per-partition` | `APP_PARTITION_THREADS_PER_PARTITION` | `1` | Threads que enviam trechos da mesma partição |
+| `app.partition.threads-per-partition` | `APP_PARTITION_THREADS_PER_PARTITION` | `4` | Threads que enviam trechos da mesma partição |
 | `app.partition.progress-interval-seconds` | `APP_PARTITION_PROGRESS_INTERVAL_SECONDS` | `10` | Intervalo dos logs de progresso (`0` desliga) |
 | `app.scheduler.file-processing.interval` | `APP_SCHEDULER_INTERVAL` | `30s` | Intervalo do ciclo (polling + particionamento) |
 | `app.scheduler.file-processing.lock-at-most-for` | `APP_SCHEDULER_LOCK_AT_MOST_FOR` | `60s` | Validade do lock (renovada pelo keep-alive) |
