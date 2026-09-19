@@ -1,4 +1,4 @@
-# Teste de carga — 2026-09-19 10:09
+# Teste de carga — 2026-09-19 10:45
 
 Energia no inicio: fonte=AC Power bateria=100% lowpower=0
 
@@ -6,4 +6,3 @@ Particoes: 10 · threads/particao: 4 · instancias: 1 · memoria: 4g · CPUs: 4 
 
 | tamanho | linhas | arquivo GB | geracao s | particao ms | particao MB/s | linhas/s | job ms | job MB/s | particoes | threads | tentativas | kafka | pico mem MB | disco livre min GB | status |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 250MM | 250000000 | 35.16 | 536 | 451761 | 79.69 | 553390 | 452551 | 79.55 | 10 | 4 | 1 | 10 | 3486 | 122 | COMPLETED |

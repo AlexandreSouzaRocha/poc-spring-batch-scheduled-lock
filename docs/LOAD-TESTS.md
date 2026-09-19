@@ -404,3 +404,69 @@ somando 15,5 s — quase todas as pausas do job. O G1 é o coletor recomendado.
 | Memória do container | `4 GB` | `partições × threads × bloco` = 320 MB de buffers + heap |
 | CPUs do container | `4` | Teto disponível em produção |
 | OpenTelemetry | ligado | Cenário real; custa 6% |
+
+## Fase 2: cópia server-side (`Put Block From URL`)
+
+A operação `Put Block From URL` faz o **serviço de blob** copiar a faixa de bytes da origem direto
+para o bloco de destino, sem os bytes passarem pela aplicação. Ela exige Azurite 3.37, então a
+comparação foi feita **dentro da mesma versão**, para não misturar o efeito da técnica com o da
+versão do emulador.
+
+250MM, 10 partições × 4 threads, bloco 8 MB, G1, OTEL on, Azurite 3.37:
+
+| Métrica | Streaming | Server-side | Diferença |
+|---|---|---|---|
+| Particionamento | 451,8 s | 472,0 s | −4,5% (empate dentro do ruído) |
+| **Pico de memória do container** | 3.486 MB | **945 MB** | **−73%** |
+| **CPU do particionador** | 231% | **13%** | **−94%** |
+| Pausas de GC | 4.372 ms | **148 ms** em 29 pausas | −97% |
+| CPU do Azurite | 304% | 249% | −18% |
+
+**O tempo de parede empata, mas o consumo da aplicação desaba.** O empate tem explicação: o Azurite
+busca a origem por *loopback*, então o serviço continua lendo e escrevendo os mesmos 70 GB, só que
+internamente. O que muda é quem faz o trabalho — a aplicação deixa de manipular bytes e passa
+apenas a orquestrar identificadores de bloco.
+
+Consequência para produção:
+
+* O container deixa de precisar de 4 GB e 4 vCPUs. Com 13% de CPU e menos de 1 GB, ele volta ao
+  patamar de um serviço de orquestração — relevante em cluster compartilhado.
+* Contra o Azure Storage real, onde a cópia server-side é um caminho nativo otimizado e não um
+  loopback de emulador, o tempo de parede tende a melhorar também. **Isso o emulador não consegue
+  demonstrar**, e é a medição que fica pendente para o ambiente real.
+
+O flag `app.partition.server-side-copy` continua `false` por padrão: localmente não há ganho de
+tempo, e a versão do Azurite que suporta a operação é mais lenta no geral (ver abaixo).
+
+### Azurite 3.35 contra 3.37: não foi possível concluir
+
+As execuções na 3.37 mediram ~3× menos throughput que a 3.35 tomada 18 minutos antes, o que sugeria
+uma regressão de versão. Um teste **A-B-A** — voltar para a 3.35 logo depois, na mesma configuração —
+derrubou essa leitura:
+
+| Ordem | Azurite | Geração | Particionamento |
+|---|---|---|---|
+| 1 | 3.35 | 249 s | 147,9 s |
+| 2 | 3.37 | 536 s | 451,8 s |
+| 3 | 3.37 | 534 s | 472,0 s |
+| 4 | **3.35** | **1.178 s** | — |
+
+A quarta execução, na versão supostamente rápida, foi a **mais lenta de todas**. Como disco e
+energia estavam em melhor estado que durante a execução rápida (`Docker.raw` em 82 GB contra 90 GB,
+host com 136 GiB livres contra 126 GiB, máquina na tomada), nenhuma das duas explicações candidatas
+se sustenta.
+
+**A conclusão honesta é sobre o instrumento, não sobre o Azurite:** o ambiente local perde entre 3 e
+5× de desempenho ao longo de horas de carga pesada, sem causa identificada e sem sinal nos
+indicadores óbvios. Comparar versões exigiria reiniciar o ambiente entre medições e alternar a ordem
+várias vezes.
+
+O que continua válido apesar disso:
+
+* **Comparações feitas em janelas curtas**, com execuções consecutivas — é o caso de streaming ×
+  server-side, cujas gerações levaram 536 s e 534 s, indicando ambiente estável entre elas.
+* **Métricas estruturais** — memória, participação de CPU e pausas de GC — que medem *onde* o
+  trabalho acontece, não a velocidade absoluta da máquina. São elas que sustentam a conclusão sobre
+  a cópia server-side.
+* **A bateria final**, cujas quatro medições foram tomadas em sequência numa janela de 25 minutos,
+  com throughput coerente entre si (227 a 250 MB/s).
