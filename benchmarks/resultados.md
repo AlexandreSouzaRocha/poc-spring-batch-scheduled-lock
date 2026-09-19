@@ -141,3 +141,21 @@ Docker reiniciado antes de cada par; as duas estratégias medidas em sequência.
 Os pares de 200MM e 250MM desta bateria foram abandonados: o tempo do server-side cresce de forma
 não-linear no emulador (ver [docs/LOAD-TESTS.md](../docs/LOAD-TESTS.md)), e mediriam apenas essa
 patologia. As medições de 250MM acima vêm da fase 2, feitas em janela própria.
+
+## Experimento final: os dois parâmetros não testados
+
+250MM, Azurite 3.35, streaming, 10 partições, bloco de upload 8 MB, G1, OTEL on, 4 GB, 4 vCPUs.
+Docker reiniciado antes de cada execução.
+
+| Variação | Particionamento | MB/s | Pico mem | Veredito |
+|---|---|---|---|---|
+| threads 6 | 143.172 ms | 251,45 | 3.430 MB | igual à referência (0,09%) |
+| threads 8 | 147.298 ms | 244,41 | 3.555 MB | 3% pior, mais memória |
+| leitura 4 MB | 212.888 ms | 169,11 | 3.573 MB | **49% pior** |
+| leitura 16 MB | 139.632 ms | 257,83 | 3.394 MB | +2,4%, dentro do ruído |
+| leitura 32 MB | — | — | — | **`OutOfMemoryError`**, job travado |
+
+Referência: 143.041 ms com 4 threads e bloco de leitura de 8 MB.
+
+A configuração recomendada fica **cercada**: em qualquer direção testada, ou não há ganho, ou o
+sistema quebra. Detalhes em [docs/LOAD-TESTS.md](../docs/LOAD-TESTS.md).
