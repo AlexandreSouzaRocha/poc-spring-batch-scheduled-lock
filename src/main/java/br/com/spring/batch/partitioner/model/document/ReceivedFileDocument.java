@@ -24,9 +24,10 @@ public record ReceivedFileDocument(
 
     public static final String COLLECTION = "received_file_management";
 
-    public static ReceivedFileDocument original(String id, String fileName, BlobLocation blob, Instant now) {
-        return new ReceivedFileDocument(id, FileRole.ORIGINAL, null, fileName, FileStatus.PENDING, blob, null, null,
-                ExecutionInfo.notStarted(), AuditInfo.createdAt(now));
+    public static ReceivedFileDocument original(String id, String fileName, BlobLocation blob, MovementInfo movement,
+            Instant now) {
+        return new ReceivedFileDocument(id, FileRole.ORIGINAL, null, fileName, FileStatus.PENDING, blob, movement,
+                null, ExecutionInfo.notStarted(), AuditInfo.createdAt(now));
     }
 
     public ReceivedFileDocument uploadedPartition(PartitionRange range, String fileName, String path, Instant now) {

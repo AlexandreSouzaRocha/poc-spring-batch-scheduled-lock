@@ -4,6 +4,7 @@ import java.nio.charset.StandardCharsets;
 
 import br.com.spring.batch.partitioner.model.enums.MovementType;
 import br.com.spring.batch.partitioner.model.layout.FileHeader;
+import br.com.spring.batch.partitioner.model.layout.MovementFileName;
 import br.com.spring.batch.partitioner.model.layout.FileLayout;
 
 import org.springframework.data.mongodb.core.mapping.Field;
@@ -15,6 +16,10 @@ public record MovementInfo(
 
     public static MovementInfo from(FileHeader fileHeader) {
         return new MovementInfo(fileHeader.text(), fileHeader.movementType(), fileHeader.movementDateText());
+    }
+
+    public static MovementInfo fromFileName(MovementFileName fileName) {
+        return new MovementInfo(null, fileName.type(), fileName.movementDate());
     }
 
     public byte[] headerLineBytes() {

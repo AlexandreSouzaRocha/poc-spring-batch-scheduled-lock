@@ -51,6 +51,10 @@ public final class ReceivedFileFields {
         return EXECUTION + "." + field;
     }
 
+    public static String movement(String field) {
+        return MOVEMENT + "." + field;
+    }
+
     public static String audit(String field) {
         return AUDIT + "." + field;
     }

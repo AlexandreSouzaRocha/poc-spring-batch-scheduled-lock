@@ -28,6 +28,8 @@ import static org.springframework.data.mongodb.core.query.Query.query;
 @Repository
 public class OriginalFileRepository {
 
+    private static final int QUEUE_SCAN_LIMIT = 1000;
+
     private static final List<FileStatus> PROCESSABLE = List.of(FileStatus.PENDING, FileStatus.PARTITIONING,
             FileStatus.FAILED);
 
@@ -49,10 +51,18 @@ public class OriginalFileRepository {
         return findById(id).orElseThrow(() -> new IllegalStateException("arquivo " + id + " não encontrado"));
     }
 
-    public List<ReceivedFileDocument> findProcessable(int limit) {
-        return collection.find(query(originals().and(ReceivedFileFields.STATUS).in(PROCESSABLE))
+    public List<ReceivedFileDocument> findProcessable() {
+        return findByStatuses(PROCESSABLE);
+    }
+
+    public List<ReceivedFileDocument> findRejected() {
+        return findByStatuses(List.of(FileStatus.ERROR));
+    }
+
+    private List<ReceivedFileDocument> findByStatuses(List<FileStatus> statuses) {
+        return collection.find(query(originals().and(ReceivedFileFields.STATUS).in(statuses))
                 .with(Sort.by(Sort.Direction.ASC, audit(ReceivedFileFields.CREATED_AT)))
-                .limit(limit));
+                .limit(QUEUE_SCAN_LIMIT));
     }
 
     public List<ReceivedFileDocument> findRecent(Optional<FileStatus> status, int limit) {
@@ -111,6 +121,13 @@ public class OriginalFileRepository {
         collection.update(id, new Update()
                 .set(ReceivedFileFields.STATUS, FileStatus.ERROR)
                 .set(execution(ReceivedFileFields.LAST_ERROR), error));
+    }
+
+    public void requeue(String id) {
+        collection.update(id, new Update()
+                .set(ReceivedFileFields.STATUS, FileStatus.PENDING)
+                .set(execution(ReceivedFileFields.ATTEMPTS), 0)
+                .unset(execution(ReceivedFileFields.LAST_ERROR)));
     }
 
     private static Criteria originals() {

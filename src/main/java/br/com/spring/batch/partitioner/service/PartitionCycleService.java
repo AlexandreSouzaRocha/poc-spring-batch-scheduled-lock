@@ -7,6 +7,7 @@ import java.util.concurrent.Semaphore;
 
 import br.com.spring.batch.partitioner.config.properties.AppProperties.PartitionSettings;
 import br.com.spring.batch.partitioner.model.document.ReceivedFileDocument;
+import br.com.spring.batch.partitioner.model.queue.ProcessingQueue;
 import br.com.spring.batch.partitioner.repository.OriginalFileRepository;
 import br.com.spring.batch.partitioner.support.log.RequestContext;
 import br.com.spring.batch.partitioner.support.log.StructuredLogger;
@@ -30,18 +31,29 @@ public class PartitionCycleService {
     }
 
     public void processPendingFiles() {
-        List<ReceivedFileDocument> files = repository.findProcessable(settings.filesPerCycle());
-        if (files.isEmpty()) {
-            log.debug("cycle.empty").log("nenhum arquivo pendente");
+        ProcessingQueue queue = ProcessingQueue.of(repository.findProcessable(), repository.findRejected(),
+                settings.filesPerCycle());
+        queue.blockedBy().ifPresent(PartitionCycleService::reportBlocked);
+        if (queue.isEmpty()) {
+            log.debug("cycle.empty").log("nenhum arquivo liberado para processamento");
             return;
         }
         long start = System.currentTimeMillis();
-        log.info("cycle.start").field("files", files.size()).field("maxConcurrentFiles", settings.maxConcurrentFiles())
-                .data("fileIds", files.stream().map(ReceivedFileDocument::id).toList())
+        log.info("cycle.start").field("files", queue.size()).field("maxConcurrentFiles", settings.maxConcurrentFiles())
+                .data("fileIds", queue.files().stream().map(ReceivedFileDocument::id).toList())
+                .data("ordem", queue.files().stream().map(ReceivedFileDocument::fileName).toList())
                 .log("iniciando ciclo de particionamento");
-        dispatch(files);
-        log.info("cycle.finish").field("files", files.size()).field("durationMs", System.currentTimeMillis() - start)
+        dispatch(queue.files());
+        log.info("cycle.finish").field("files", queue.size()).field("durationMs", System.currentTimeMillis() - start)
                 .log("ciclo de particionamento concluído");
+    }
+
+    private static void reportBlocked(ReceivedFileDocument blocker) {
+        log.warn("cycle.blocked").field("fileId", blocker.id())
+                .field("movementType", blocker.movement().type())
+                .field("movementDate", blocker.movement().date())
+                .data("fileName", blocker.fileName())
+                .log("fila bloqueada: arquivos posteriores só serão processados após a resolução deste");
     }
 
     private void dispatch(List<ReceivedFileDocument> files) {

@@ -6,10 +6,20 @@ import java.util.Locale;
 import br.com.spring.batch.partitioner.model.layout.InvalidFileException;
 
 public enum MovementType {
-    ABERTO,
-    FECHADO,
-    SALDO,
-    ULTIMA;
+    FECHADO(1),
+    ABERTO(2),
+    ULTIMA(3),
+    SALDO(4);
+
+    private final int processingOrder;
+
+    MovementType(int processingOrder) {
+        this.processingOrder = processingOrder;
+    }
+
+    public int processingOrder() {
+        return processingOrder;
+    }
 
     public String folder() {
         return name().toLowerCase(Locale.ROOT);
