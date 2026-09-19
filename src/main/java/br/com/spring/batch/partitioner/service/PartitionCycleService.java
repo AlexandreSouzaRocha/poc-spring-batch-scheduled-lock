@@ -43,16 +43,16 @@ public class PartitionCycleService {
                 settings.filesPerCycle());
         queue.blockedBy().ifPresent(PartitionCycleService::reportBlocked);
         if (queue.isEmpty()) {
-            log.debug("cycle.empty").log("nenhum arquivo liberado para processamento");
+            log.debug("queue.empty").log("nenhum arquivo liberado para processamento");
             return;
         }
         long start = System.currentTimeMillis();
-        log.info("cycle.start").field("files", queue.size()).field("maxConcurrentTypes", settings.maxConcurrentTypes())
+        log.info("queue.dispatch").field("files", queue.size()).field("maxConcurrentTypes", settings.maxConcurrentTypes())
                 .data("fileIds", queue.files().stream().map(ReceivedFileDocument::id).toList())
                 .data("ordem", queue.files().stream().map(ReceivedFileDocument::fileName).toList())
                 .log("iniciando ciclo de particionamento");
         dispatch(queue.byMovementGroup());
-        log.info("cycle.finish").field("files", queue.size()).field("durationMs", System.currentTimeMillis() - start)
+        log.info("queue.finish").field("files", queue.size()).field("durationMs", System.currentTimeMillis() - start)
                 .log("ciclo de particionamento concluído");
     }
 

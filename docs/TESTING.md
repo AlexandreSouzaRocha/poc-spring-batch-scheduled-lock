@@ -50,6 +50,28 @@ overlaps=0
 TODAS AS VALIDAÇÕES PASSARAM
 ```
 
+## Ordem de processamento e lock por tipo
+
+```bash
+PARTITIONER_INSTANCES=2 SCHEDULER_INTERVAL=5s ./scripts/ordering-test.sh
+```
+
+`scripts/ordering-test.sh` para os particionadores, gera quatro arquivos **fora de ordem**
+(SALDO, ABERTO, FECHADO de hoje e FECHADO de ontem) e só então sobe as instâncias, de modo que a
+fila esteja formada antes do primeiro poll. Verifica:
+
+| Verificação | O que prova |
+|---|---|
+| Fila despachada como FECHADO(ontem), FECHADO(hoje), ABERTO, SALDO | Ordenação por tipo e depois por data, independente da ordem de chegada |
+| FECHADO de ontem concluído antes do de hoje | O lock por tipo serializa o mesmo tipo, preservando a ordem por data |
+| Quatro arquivos em `COMPLETED` | O fluxo completo funciona com duas instâncias ativas |
+| Cada instância adquirindo locks de tipos diferentes | Paralelismo entre instâncias |
+| `overlaps=0` na auditoria | Nenhum lock mantido por duas instâncias ao mesmo tempo |
+
+O intervalo curto de scheduler (`SCHEDULER_INTERVAL=5s`) é necessário para o teste: com o padrão de
+30 s e arquivos que processam em segundos, uma única instância termina tudo antes de a outra
+acordar, e o paralelismo não aparece.
+
 ## Resume e recovery (chaos)
 
 ```bash

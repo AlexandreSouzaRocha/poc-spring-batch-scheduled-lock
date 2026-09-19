@@ -2,9 +2,9 @@ package br.com.spring.batch.partitioner.service;
 
 import br.com.spring.batch.partitioner.batch.job.FileJobParameters;
 import br.com.spring.batch.partitioner.batch.recovery.AbandonedExecutionRecovery;
+import br.com.spring.batch.partitioner.batch.recovery.OrphanJobInstanceCleaner;
 import br.com.spring.batch.partitioner.model.document.ReceivedFileDocument;
 import br.com.spring.batch.partitioner.repository.OriginalFileRepository;
-import br.com.spring.batch.partitioner.support.MongoRetry;
 import br.com.spring.batch.partitioner.support.log.ErrorSummary;
 import br.com.spring.batch.partitioner.support.log.StructuredLogger;
 
@@ -22,12 +22,14 @@ public class FilePartitionJobRunner {
     private final JobLauncherGateway gateway;
     private final AbandonedExecutionRecovery recovery;
     private final OriginalFileRepository repository;
+    private final OrphanJobInstanceCleaner orphanCleaner;
 
     public FilePartitionJobRunner(JobOperator jobOperator, Job filePartitionJob, AbandonedExecutionRecovery recovery,
-                                  OriginalFileRepository repository) {
+                                  OriginalFileRepository repository, OrphanJobInstanceCleaner orphanCleaner) {
         this.gateway = new JobLauncherGateway(jobOperator, filePartitionJob);
         this.recovery = recovery;
         this.repository = repository;
+        this.orphanCleaner = orphanCleaner;
     }
 
     public JobOutcome run(ReceivedFileDocument file) {
@@ -52,13 +54,14 @@ public class FilePartitionJobRunner {
                 .field("attempt", attempt.attempts()).field("restart", restart)
                 .data("previousStatus", file.status()).data("sizeBytes", file.sizeBytes())
                 .log(restart ? "reiniciando particionamento (resume)" : "iniciando particionamento");
+        orphanCleaner.removeOrphanOf(file.id());
         return JobOutcome.of(gateway.start(file.id()));
     }
 
     private record JobLauncherGateway(JobOperator jobOperator, Job job) {
 
         JobExecution start(String fileId) throws Exception {
-            return MongoRetry.withRetry(() -> jobOperator.start(job, FileJobParameters.forFile(fileId)));
+            return jobOperator.start(job, FileJobParameters.forFile(fileId));
         }
     }
 }

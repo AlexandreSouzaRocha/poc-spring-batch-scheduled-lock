@@ -185,3 +185,37 @@ blob_usage() {
       --query "[].{name:name, bytes:properties.contentLength}" -o json 2>/dev/null \
     | python3 "$(dirname "${BASH_SOURCE[0]}")/blob-usage.py"
 }
+
+wait_registered() {
+  local expected=$1 deadline=$((SECONDS + ${2:-180}))
+  while [ $SECONDS -lt $deadline ]; do
+    local registered
+    registered=$(curl -fsS "$(partitioner_url)/files?limit=50" 2>/dev/null \
+      | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))' 2>/dev/null || echo 0)
+    if [ "$registered" -ge "$expected" ]; then
+      return 0
+    fi
+    sleep 2
+  done
+  return 1
+}
+
+file_id_of() {
+  local movement_type=$1 movement_date=$2
+  curl -fsS "$(partitioner_url)/files?limit=50" | python3 -c "
+import json, sys
+for entry in json.load(sys.stdin):
+    movement = entry.get('movement') or {}
+    if movement.get('type') == '$movement_type' and movement.get('date') == '$movement_date':
+        print(entry['id'])
+        break
+"
+}
+
+completed_before() {
+  local first=$1 second=$2
+  local first_at second_at
+  first_at=$(file_field "$first" "d['file']['audit']['completedAt']")
+  second_at=$(file_field "$second" "d['file']['audit']['completedAt']")
+  python3 -c "print(str('$first_at' < '$second_at').lower())"
+}
