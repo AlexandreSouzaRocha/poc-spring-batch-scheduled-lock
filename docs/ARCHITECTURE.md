@@ -131,9 +131,30 @@ app:
     connect-timeout-seconds: 10    # estabelecer a conexão
 ```
 
-O `tryTimeout` limita **cada tentativa**, não o conjunto: com 3 tentativas, o pior caso de uma
-operação é da ordem de 3 minutos antes de o erro subir para a aplicação, que então trata a falha
-pelo fluxo normal de retentativa do arquivo.
+### O escopo do `tryTimeout`
+
+O `tryTimeout` vale para **uma requisição HTTP**, dimensionada pelo block size — não para o arquivo,
+nem para o particionamento, nem para o job. No `RequestRetryPolicy` do SDK ele é aplicado como
+`responseMono.timeout(tryTimeout)`, dentro da política de retry de cada chamada.
+
+No 250MM com blocos de 8 MB, isso significa cerca de **9.400 requisições** (≈472 downloads e
+≈472 uploads por partição, vezes 10 partições), cada uma com seu próprio teto de 60 s. É por isso
+que o particionamento inteiro leva minutos sem nenhum timeout disparar.
+
+Há uma assimetria entre as duas direções, porque o `responseMono` resolve quando a **resposta
+chega**, não quando o corpo termina de ser lido:
+
+* **Upload (`stageBlock`)**: o teto cobre a operação inteira, porque a resposta só vem depois de o
+  servidor receber e processar o bloco.
+* **Download**: o teto cobre até os **headers**. A transferência do corpo acontece depois e fica por
+  conta do `readTimeout`, que é de ociosidade — mata a conexão que fica 60 s sem receber nada, mas
+  não uma que esteja lenta e constante.
+
+A proteção no download, portanto, vem da combinação dos dois: `tryTimeout` para a requisição não
+ficar parada, `readTimeout` para o fluxo não congelar no meio. Nenhum deles sozinho cobriria o caso.
+
+Com 3 tentativas, o pior caso de uma requisição antes de o erro subir para a aplicação é da ordem de
+`maxTries × tryTimeout` = 3 minutos — e não 60 s, como a leitura apressada do parâmetro sugeriria.
 
 **Dimensionamento:** os valores precisam acomodar o pior caso legítimo. No emulador um bloco de 8 MB
 sobe em dezenas de milissegundos, mas contra o Azure real, com rede intermediando, o percentil alto
