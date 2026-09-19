@@ -43,6 +43,21 @@ paralelismo interno.
 | 100MM | 106 s | 77.218 ms | 186,49 | 1.804 MB | alta |
 | 250MM | 263 s | 199.920 ms | 180,08 | 2.865 MB | alta |
 
+## Bateria final — configuração recomendada, host na tomada
+
+10 partições × 4 threads, bloco 8 MB, G1GC, OTEL on, 1 instância, 4 GB, 4 vCPUs,
+`UV_THREADPOOL_SIZE=16`, Azurite 3.35. **Estes são os números oficiais da POC.**
+
+| Volume | Geração | Particionamento | MB/s | Pico mem | Kafka | Confiança |
+|---|---|---|---|---|---|---|
+| 50MM | 52 s | 30.209 ms | 238,35 | 3.355 MB | 10 | alta |
+| 100MM | 104 s | 63.325 ms | 227,41 | 3.308 MB | 10 | alta |
+| 200MM | 200 s | 115.404 ms | 249,57 | 3.397 MB | 10 | alta |
+| 250MM | 249 s | **147.860 ms** | 243,48 | 3.371 MB | 10 | alta |
+
+Réplicas da mesma configuração em 250MM, para estimar a dispersão: 153.517 ms, 153.153 ms e
+146.124 ms — **5,1%**. Com o host na bateria, a mesma configuração chegou a variar 31%.
+
 ## Bateria 4 — tuning em 250MM
 
 Base: 10 partições × 4 threads, 1 instância, 4 GB, 4 vCPUs, `UV_THREADPOOL_SIZE=16`,
