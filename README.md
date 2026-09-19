@@ -75,6 +75,9 @@ Tipos: `ABERTO`, `FECHADO`, `SALDO`, `ULTIMA`. **Cada partição recebe uma cóp
 | `app.shedlock.collection` | `APP_SHEDLOCK_COLLECTION` | `scheduler_locks` | Collection do lock |
 | `app.shedlock.fields.*` | `APP_SHEDLOCK_FIELD_*` | `_id`, `lock_until`, `locked_at`, `locked_by` | Nomes dos campos do lock |
 | `app.blob.upload-block-size-mb` | `APP_BLOB_UPLOAD_BLOCK_SIZE_MB` | `8` | Tamanho do bloco de upload (memória por partição) |
+| `app.blob.read-block-size-mb` | `APP_BLOB_READ_BLOCK_SIZE_MB` | `8` | Tamanho das requisições de leitura do original |
+| `app.blob.try-timeout-seconds` | `APP_BLOB_TRY_TIMEOUT_SECONDS` | `60` | Teto de cada tentativa no SDK do Azure |
+| `app.blob.response-timeout-seconds` | `APP_BLOB_RESPONSE_TIMEOUT_SECONDS` | `60` | Teto de resposta no nível HTTP |
 | `app.kafka.topic` | `APP_KAFKA_TOPIC` | `movimentos-particionados` | Tópico de saída |
 | — | `OTEL_ENABLED` | `true` | Liga o agente do OpenTelemetry (gera `trace_id`/`span_id` nos logs) |
 

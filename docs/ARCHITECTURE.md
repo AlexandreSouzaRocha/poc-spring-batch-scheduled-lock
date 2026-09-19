@@ -100,6 +100,41 @@ resto da divisão das linhas vai para as primeiras partições, uma linha a mais
 O `BlobOutputStream` do SDK foi descartado porque enfileira blocos sem limite quando a
 leitura é mais rápida que o upload. Com arquivos de 755 MB, ele causou `OutOfMemoryError`.
 
+## Timeouts nas chamadas ao blob
+
+Sem timeout, uma chamada travada ao storage prende o job indefinidamente: foi o que aconteceu num
+teste de carga, em que um `OutOfMemoryError` dentro do SDK deixou o particionamento pendurado, com
+CPU em 0,16% e sem progresso, em vez de falhar. O cliente do blob é construído com limites em dois
+níveis:
+
+| Nível | Configuração | Protege de |
+|---|---|---|
+| Storage SDK | `RequestRetryOptions` com `tryTimeout` | Uma tentativa individual que não termina |
+| HTTP (Netty) | `responseTimeout`, `readTimeout`, `writeTimeout` | Conexão que para de responder no meio |
+
+```yaml
+app:
+  blob:
+    max-tries: 3
+    try-timeout-seconds: 60        # teto de cada tentativa
+    retry-delay-seconds: 2
+    max-retry-delay-seconds: 30
+    response-timeout-seconds: 60   # teto no nível HTTP
+```
+
+O `tryTimeout` limita **cada tentativa**, não o conjunto: com 3 tentativas, o pior caso de uma
+operação é da ordem de 3 minutos antes de o erro subir para a aplicação, que então trata a falha
+pelo fluxo normal de retentativa do arquivo.
+
+**Dimensionamento:** os valores precisam acomodar o pior caso legítimo. No emulador um bloco de 8 MB
+sobe em dezenas de milissegundos, mas contra o Azure real, com rede intermediando, o percentil alto
+é bem maior. Os 60 s são folgados de propósito — o objetivo é **impedir o travamento infinito**, não
+otimizar latência. Ajustar com dados de produção.
+
+Os atrasos injetados pelos testes de caos acontecem no código da aplicação, não nas chamadas do SDK,
+então não são interceptados por esses timeouts — o cenário `slow-io`, com 90 s de atraso, continua
+concluindo na primeira tentativa.
+
 ## Transações do MongoDB
 
 O limite de transação do MongoDB em produção é **60 s** (`transactionLifetimeLimitSeconds`), e o

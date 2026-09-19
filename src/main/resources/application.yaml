@@ -39,6 +39,11 @@ app:
     upload-block-size-mb: ${APP_BLOB_UPLOAD_BLOCK_SIZE_MB:8}
     read-block-size-mb: ${APP_BLOB_READ_BLOCK_SIZE_MB:8}
     copy-buffer-kb: ${APP_BLOB_COPY_BUFFER_KB:256}
+    max-tries: ${APP_BLOB_MAX_TRIES:3}
+    try-timeout-seconds: ${APP_BLOB_TRY_TIMEOUT_SECONDS:60}
+    retry-delay-seconds: ${APP_BLOB_RETRY_DELAY_SECONDS:2}
+    max-retry-delay-seconds: ${APP_BLOB_MAX_RETRY_DELAY_SECONDS:30}
+    response-timeout-seconds: ${APP_BLOB_RESPONSE_TIMEOUT_SECONDS:60}
 
   folders:
     inbox: ${APP_FOLDER_INBOX:entrada}

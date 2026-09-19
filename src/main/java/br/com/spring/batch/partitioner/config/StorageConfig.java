@@ -17,9 +17,13 @@ import br.com.spring.batch.partitioner.storage.BlobUrls;
 import br.com.spring.batch.partitioner.storage.azure.AzureBlobReader;
 import br.com.spring.batch.partitioner.storage.azure.AzureBlobUrls;
 import br.com.spring.batch.partitioner.storage.azure.AzureBlobWriter;
+import com.azure.core.http.HttpClient;
+import com.azure.core.http.netty.NettyAsyncHttpClientBuilder;
 import com.azure.storage.blob.BlobContainerClient;
 import com.azure.storage.blob.BlobServiceClientBuilder;
 import com.azure.storage.common.StorageSharedKeyCredential;
+import com.azure.storage.common.policy.RequestRetryOptions;
+import com.azure.storage.common.policy.RetryPolicyType;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -35,8 +39,23 @@ public class StorageConfig {
         return new BlobServiceClientBuilder()
                 .endpoint(settings.endpoint())
                 .credential(new StorageSharedKeyCredential(settings.accountName(), settings.accountKey()))
+                .retryOptions(retryOptionsOf(settings))
+                .httpClient(httpClientOf(settings))
                 .buildClient()
                 .getBlobContainerClient(settings.container());
+    }
+
+    private static RequestRetryOptions retryOptionsOf(BlobSettings settings) {
+        return new RequestRetryOptions(RetryPolicyType.EXPONENTIAL, settings.maxTries(), settings.tryTimeout(),
+                settings.retryDelay(), settings.maxRetryDelay(), null);
+    }
+
+    private static HttpClient httpClientOf(BlobSettings settings) {
+        return new NettyAsyncHttpClientBuilder()
+                .responseTimeout(settings.responseTimeout())
+                .readTimeout(settings.responseTimeout())
+                .writeTimeout(settings.responseTimeout())
+                .build();
     }
 
     @Bean

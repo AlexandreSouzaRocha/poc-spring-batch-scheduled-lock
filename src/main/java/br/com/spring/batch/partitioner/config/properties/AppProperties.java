@@ -1,5 +1,7 @@
 package br.com.spring.batch.partitioner.config.properties;
 
+import java.time.Duration;
+
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -23,10 +25,31 @@ public record AppProperties(
             @NotBlank String container,
             @Min(1) int uploadBlockSizeMb,
             @Min(1) int readBlockSizeMb,
-            @Min(1) int copyBufferKb) {
+            @Min(1) int copyBufferKb,
+            @Min(1) int maxTries,
+            @Min(1) int tryTimeoutSeconds,
+            @Min(1) int retryDelaySeconds,
+            @Min(1) int maxRetryDelaySeconds,
+            @Min(1) int responseTimeoutSeconds) {
 
         private static final int KILOBYTE = 1024;
         private static final int MEGABYTE = KILOBYTE * KILOBYTE;
+
+        public Duration tryTimeout() {
+            return Duration.ofSeconds(tryTimeoutSeconds);
+        }
+
+        public Duration retryDelay() {
+            return Duration.ofSeconds(retryDelaySeconds);
+        }
+
+        public Duration maxRetryDelay() {
+            return Duration.ofSeconds(maxRetryDelaySeconds);
+        }
+
+        public Duration responseTimeout() {
+            return Duration.ofSeconds(responseTimeoutSeconds);
+        }
 
         public long uploadBlockSizeBytes() {
             return (long) uploadBlockSizeMb * MEGABYTE;
