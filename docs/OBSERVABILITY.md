@@ -6,6 +6,16 @@ Todas as linhas saem em `logfmt`: campos `chave=valor`, a mensagem em `msg` e os
 complementares como JSON. É um formato que o Dynatrace e qualquer parser de log entendem sem
 regra customizada.
 
+**Decisão:** o formato foi mantido em logfmt. As alternativas avaliadas foram o JSON estruturado
+nativo do Spring Boot (`logging.structured.format`, com ECS ou Logstash) e o
+`logstash-logback-encoder`. Ambos tornariam pesquisáveis, sem regra de parsing, também os campos
+que hoje ficam dentro de `data={...}` — caminho do blob, faixas de bytes e o resumo do erro. Em
+compensação, exigiriam mover os campos customizados para MDC ou argumentos estruturados e
+tornariam o log bem menos legível no terminal durante o desenvolvimento. Como o Dynatrace já
+extrai automaticamente todo par `chave=valor`, os campos que mais importam para filtro
+(`context`, `operation`, `fileId`, `durationMs`) já chegam consultáveis, e o ganho não justificou
+a mudança.
+
 ```
 <timestamp> level=<nível> logger=<classe> thread=<thread> request_id=<id> trace_id=<id> span_id=<id> context=<área> operation=<operação> <campos> msg="<mensagem>" data={<json>} ex={<json do erro>}
 ```

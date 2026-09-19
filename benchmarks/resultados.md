@@ -58,6 +58,10 @@ paralelismo interno.
 Réplicas da mesma configuração em 250MM, para estimar a dispersão: 153.517 ms, 153.153 ms e
 146.124 ms — **5,1%**. Com o host na bateria, a mesma configuração chegou a variar 31%.
 
+A melhor marca da sessão para 250MM foi **143.041 ms (251,68 MB/s)**, medida logo após reiniciar o
+Docker Desktop. Os números da tabela acima foram tomados no meio da sessão e são, portanto,
+ligeiramente conservadores.
+
 ## Bateria 4 — tuning em 250MM
 
 Base: 10 partições × 4 threads, 1 instância, 4 GB, 4 vCPUs, `UV_THREADPOOL_SIZE=16`,
