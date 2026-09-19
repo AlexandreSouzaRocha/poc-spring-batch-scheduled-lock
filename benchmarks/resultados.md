@@ -119,3 +119,21 @@ Três fatores comprometeram a precisão das medições desta sessão:
 Por isso, as execuções passaram a registrar o estado de energia do host, e conclusões só são
 tiradas de efeitos muito maiores que a dispersão — como o 3,08× da bateria 2 sobre a 1 — ou de
 medições diretas, como os perfis de GC.
+
+## Streaming × cópia server-side (Azurite 3.37)
+
+Docker reiniciado antes de cada par; as duas estratégias medidas em sequência. 10 partições ×
+4 threads, bloco 8 MB, G1, OTEL on, 4 GB, 4 vCPUs.
+
+| Volume | Estratégia | Geração | Particionamento | MB/s | Pico mem | CPU app |
+|---|---|---|---|---|---|---|
+| 50MM | streaming | 105 s | 86.026 ms | 83,70 | 3.444 MB | 133% |
+| 50MM | server-side | 106 s | 97.206 ms | 74,07 | **815 MB** | **16%** |
+| 100MM | streaming | 209 s | 173.342 ms | 83,08 | 3.376 MB | 87% |
+| 100MM | server-side | 216 s | **1.148.394 ms** | 12,54 | **836 MB** | — |
+| 250MM | streaming | 536 s | 451.761 ms | 79,69 | 3.486 MB | 231% |
+| 250MM | server-side | 534 s | 471.991 ms | 76,28 | **945 MB** | **13%** |
+
+Os pares de 200MM e 250MM desta bateria foram abandonados: o tempo do server-side cresce de forma
+não-linear no emulador (ver [docs/LOAD-TESTS.md](../docs/LOAD-TESTS.md)), e mediriam apenas essa
+patologia. As medições de 250MM acima vêm da fase 2, feitas em janela própria.

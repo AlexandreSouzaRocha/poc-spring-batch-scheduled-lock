@@ -435,8 +435,29 @@ Consequência para produção:
   loopback de emulador, o tempo de parede tende a melhorar também. **Isso o emulador não consegue
   demonstrar**, e é a medição que fica pendente para o ambiente real.
 
-O flag `app.partition.server-side-copy` continua `false` por padrão: localmente não há ganho de
-tempo, e a versão do Azurite que suporta a operação é mais lenta no geral (ver abaixo).
+### Por volume: o tempo local é uma patologia do emulador
+
+Uma bateria por volume, com o Docker reiniciado antes de cada par e as duas estratégias medidas em
+sequência (a geração serve de controle do ambiente):
+
+| Volume (3.37) | Geração | Streaming | Server-side | Razão |
+|---|---|---|---|---|
+| 50MM | 105 s / 106 s | 86,0 s | 97,2 s | 1,13× |
+| 100MM | 209 s / 216 s | 173,3 s | **1.148,4 s** | **6,6×** |
+
+Dobrar o volume multiplicou o tempo do server-side por **11,8**, enquanto o do streaming dobrou. Esse
+crescimento não-linear é assinatura de custo quadrático: o Azurite serve o `Put Block From URL`
+buscando a origem por *loopback*, e o custo por bloco parece crescer com o offset lido.
+
+É uma característica do **emulador**, não da operação. No Azure Storage a cópia server-side é um
+caminho nativo, sem loopback e sem releitura. Por isso as medições de 200MM e 250MM foram
+abandonadas: produziriam apenas números maiores da mesma patologia, a um custo de horas.
+
+**O que fica estabelecido:** a redução de recursos (memória e CPU) é real, estrutural e medida em
+três volumes. **O que não fica:** o efeito no tempo de parede, que só pode ser medido contra o Azure
+real.
+
+O flag `app.partition.server-side-copy` continua `false` por padrão.
 
 ### Azurite 3.35 contra 3.37: não foi possível concluir
 
