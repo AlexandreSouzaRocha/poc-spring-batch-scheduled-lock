@@ -81,6 +81,11 @@ LINES=2000000 ./scripts/chaos-test.sh kill-owner
 
 A falha é injetada nas duas instâncias via `PUT /chaos`, porque não se sabe qual delas terá o lock.
 
+Antes de cada cenário, o `setup` **remove arquivos em `ERROR`** deixados por cenários anteriores.
+Isso é necessário porque a fila é bloqueante: o arquivo inválido do cenário `invalid-file` barraria
+todos os cenários seguintes, que é o comportamento correto do produto, mas inviabiliza a suíte
+encadeada.
+
 | Cenário | Falha injetada | Validações |
 |---|---|---|
 | `partition-fail` | A partição 3 falha na 1ª tentativa, depois de gravada | `COMPLETED` na 2ª tentativa; o cleanup fez **rollback** das partições da 1ª tentativa; partições íntegras; Kafka só com as mensagens da tentativa bem-sucedida |

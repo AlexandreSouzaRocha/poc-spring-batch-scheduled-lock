@@ -186,6 +186,15 @@ blob_usage() {
     | python3 "$(dirname "${BASH_SOURCE[0]}")/blob-usage.py"
 }
 
+clear_rejected_files() {
+  docker exec psl-mongo mongosh partitioner_batch --quiet --eval '
+    const rejected = db.received_file_management.find({ role: "ORIGINAL", status: "ERROR" }, { _id: 1 }).toArray();
+    const ids = rejected.map(file => file._id);
+    db.received_file_management.deleteMany({ $or: [{ _id: { $in: ids } }, { parent_file_id: { $in: ids } }] });
+    print(ids.length);
+  ' 2>/dev/null | tr -d "\r\n"
+}
+
 wait_registered() {
   local expected=$1 deadline=$((SECONDS + ${2:-180}))
   while [ $SECONDS -lt $deadline ]; do

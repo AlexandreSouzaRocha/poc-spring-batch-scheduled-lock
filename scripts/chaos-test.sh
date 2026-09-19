@@ -8,6 +8,11 @@ LINES=${LINES:-200000}
 setup() {
   wait_healthy $(app_urls)
   chaos_off
+  local rejected
+  rejected=$(clear_rejected_files)
+  if [ "${rejected:-0}" != "0" ]; then
+    info "removidos $rejected arquivo(s) em ERROR de cenários anteriores (a fila é bloqueante)"
+  fi
   wait_idle
 }
 
