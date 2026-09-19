@@ -182,6 +182,26 @@ processamento durar.
 A collection e os nomes dos campos continuam configuráveis por `app.shedlock.*`, com o provider
 próprio descrito abaixo.
 
+### Concorrência na criação de jobs
+
+Com duas instâncias lançando jobs ao mesmo tempo, duas corridas ficam expostas nas collections do
+Spring Batch:
+
+1. **Criação duplicada de `JobInstance`.** O DAO verifica a existência e insere em seguida — entre
+   as duas operações, outra instância pode inserir a mesma chave. Um **índice único em
+   `(job_name, job_key)`** (criado no `mongo-init`) transforma a corrida em erro de chave duplicada.
+   A aplicação trata esse erro como `CONCURRENT_LAUNCH`: devolve o arquivo para `PENDING`, **desconta
+   a tentativa** — porque nada chegou a ser executado — e deixa o próximo ciclo reprocessar.
+2. **`JobInstance` sem execução.** Se o lançamento falha entre criar a instância e gravar a execução,
+   sobra uma instância órfã, e todas as tentativas seguintes falham com
+   `Cannot find any job execution for job instance`. O `OrphanJobInstanceCleaner` descarta, antes de
+   lançar, apenas instâncias **sem nenhuma execução** — que não carregam estado algum. Instâncias com
+   execuções são preservadas, mantendo intacto o caminho de resume.
+
+Por esse motivo o lançamento do job **não é envolvido em retry**: criar uma `JobInstance` não é
+idempotente, e repetir a operação após uma falha parcial era o que produzia a instância órfã. Um
+erro transitório agora custa um ciclo, e o arquivo volta pela fila normalmente.
+
 ### Provider customizado
 
 O `MongoLockProvider` oficial deixa trocar só o nome da collection. Os campos são fixos:

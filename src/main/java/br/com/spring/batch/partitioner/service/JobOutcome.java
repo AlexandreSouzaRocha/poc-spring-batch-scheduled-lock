@@ -10,7 +10,8 @@ public enum JobOutcome {
     COMPLETED,
     FAILED,
     INVALID_FILE,
-    LAUNCH_ERROR;
+    LAUNCH_ERROR,
+    CONCURRENT_LAUNCH;
 
     public static JobOutcome of(JobExecution execution) {
         if (execution.getStatus() == BatchStatus.COMPLETED) {

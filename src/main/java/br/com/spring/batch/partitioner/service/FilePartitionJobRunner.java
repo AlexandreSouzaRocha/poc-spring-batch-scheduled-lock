@@ -5,6 +5,7 @@ import br.com.spring.batch.partitioner.batch.recovery.AbandonedExecutionRecovery
 import br.com.spring.batch.partitioner.batch.recovery.OrphanJobInstanceCleaner;
 import br.com.spring.batch.partitioner.model.document.ReceivedFileDocument;
 import br.com.spring.batch.partitioner.repository.OriginalFileRepository;
+import br.com.spring.batch.partitioner.support.DuplicateKeyDetector;
 import br.com.spring.batch.partitioner.support.log.ErrorSummary;
 import br.com.spring.batch.partitioner.support.log.StructuredLogger;
 
@@ -41,10 +42,20 @@ public class FilePartitionJobRunner {
             repository.complete(file.id(), 0);
             return JobOutcome.COMPLETED;
         } catch (Exception e) {
-            repository.fail(file.id(), ErrorSummary.oneLine(e));
-            log.error("file.process").field("fileId", file.id()).error(e).log("falha ao executar o job");
-            return JobOutcome.LAUNCH_ERROR;
+            return failure(file, e);
         }
+    }
+
+    private JobOutcome failure(ReceivedFileDocument file, Exception error) {
+        if (DuplicateKeyDetector.isDuplicateKey(error)) {
+            repository.releaseAttempt(file.id());
+            log.warn("file.concurrent").field("fileId", file.id()).error(error)
+                    .log("outra instância já iniciou este arquivo; tentativa devolvida para o próximo ciclo");
+            return JobOutcome.CONCURRENT_LAUNCH;
+        }
+        repository.fail(file.id(), ErrorSummary.oneLine(error));
+        log.error("file.process").field("fileId", file.id()).error(error).log("falha ao executar o job");
+        return JobOutcome.LAUNCH_ERROR;
     }
 
     private JobOutcome start(ReceivedFileDocument file) throws Exception {

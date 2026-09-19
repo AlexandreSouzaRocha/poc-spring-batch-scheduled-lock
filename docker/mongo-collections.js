@@ -27,6 +27,8 @@ BATCH_SEQUENCES.forEach(function (sequence) {
 print("[sequences]   batch_sequences com " + BATCH_SEQUENCES.length + " contadores");
 
 createIndex(FILE_COLLECTION, { role: 1, status: 1, "audit.created_at": 1 }, { name: "role_status_created_at" });
+createIndex("batch_job_instance", { job_name: 1, job_key: 1 },
+  { name: "job_name_job_key_unique", unique: true });
 createIndex(FILE_COLLECTION, { parent_file_id: 1, "partitioning.index": 1 },
   { name: "parent_file_id_partition_index" });
 

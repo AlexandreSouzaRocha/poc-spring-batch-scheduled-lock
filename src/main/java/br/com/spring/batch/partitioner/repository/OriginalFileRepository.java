@@ -87,6 +87,12 @@ public class OriginalFileRepository {
                 .inc(execution(ReceivedFileFields.ATTEMPTS), 1));
     }
 
+    public void releaseAttempt(String id) {
+        collection.update(id, new Update()
+                .set(ReceivedFileFields.STATUS, FileStatus.PENDING)
+                .inc(execution(ReceivedFileFields.ATTEMPTS), -1));
+    }
+
     public void recordJobExecution(String id, long jobInstanceId, long jobExecutionId) {
         collection.update(id, new Update()
                 .set(execution(ReceivedFileFields.JOB_INSTANCE_ID), jobInstanceId)
