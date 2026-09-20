@@ -18,6 +18,10 @@ public record SchedulerProperties(
     private static final String SEPARATOR = "-";
     private static final String POLL_SUFFIX = "poll";
 
+    public String lockName() {
+        return lockName;
+    }
+
     public String pollLockName() {
         return lockName + SEPARATOR + POLL_SUFFIX;
     }

@@ -53,11 +53,14 @@ app:
 
   file:
     line-separator: ${APP_FILE_LINE_SEPARATOR:LF}
+    dependencies:
+      ULTIMA: ${APP_FILE_DEPENDENCIES_ULTIMA:ABERTO}
 
   partition:
     count: ${APP_PARTITION_COUNT:10}
     max-attempts: ${APP_PARTITION_MAX_ATTEMPTS:3}
     max-concurrent-types: ${APP_PARTITION_MAX_CONCURRENT_TYPES:1}
+    dispatch: ${APP_PARTITION_DISPATCH:CONCURRENT}
     files-per-cycle: ${APP_PARTITION_FILES_PER_CYCLE:20}
     threads-per-partition: ${APP_PARTITION_THREADS_PER_PARTITION:4}
     progress-interval-seconds: ${APP_PARTITION_PROGRESS_INTERVAL_SECONDS:10}

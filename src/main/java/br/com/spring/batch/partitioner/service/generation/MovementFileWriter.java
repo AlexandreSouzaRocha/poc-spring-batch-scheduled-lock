@@ -9,7 +9,6 @@ import br.com.spring.batch.partitioner.batch.metrics.StepVolume;
 import br.com.spring.batch.partitioner.batch.metrics.Throughput;
 import br.com.spring.batch.partitioner.model.layout.DetailRecordBuilder;
 import br.com.spring.batch.partitioner.model.layout.FileHeader;
-import br.com.spring.batch.partitioner.model.layout.FileLayout;
 import br.com.spring.batch.partitioner.storage.BlobPaths;
 import br.com.spring.batch.partitioner.storage.BlobUpload;
 import br.com.spring.batch.partitioner.storage.BlobWriter;

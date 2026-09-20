@@ -2,7 +2,13 @@ package br.com.spring.batch.partitioner.config.properties;
 
 import java.time.Duration;
 
+import java.util.List;
+import java.util.Map;
+
+import br.com.spring.batch.partitioner.model.enums.MovementType;
 import br.com.spring.batch.partitioner.model.layout.FileLayout;
+import br.com.spring.batch.partitioner.model.queue.MovementDependencies;
+import br.com.spring.batch.partitioner.service.dispatch.DispatchMode;
 import br.com.spring.batch.partitioner.model.layout.LineSeparator;
 
 import jakarta.validation.Valid;
@@ -22,10 +28,15 @@ public record AppProperties(
         @Valid @NotNull KafkaSettings kafka,
         @Valid @NotNull FileSettings file) {
 
-    public record FileSettings(@NotNull LineSeparator lineSeparator) {
+    public record FileSettings(@NotNull LineSeparator lineSeparator,
+            Map<MovementType, List<MovementType>> dependencies) {
 
         public FileLayout layout() {
             return new FileLayout(lineSeparator);
+        }
+
+        public MovementDependencies movementDependencies() {
+            return MovementDependencies.of(dependencies == null ? Map.of() : dependencies);
         }
     }
 
@@ -91,6 +102,7 @@ public record AppProperties(
             @Min(1) int maxAttempts,
             @Min(1) int maxConcurrentTypes,
             @Min(1) int filesPerCycle,
+            @NotNull DispatchMode dispatch,
             @Min(1) int threadsPerPartition,
             @Min(0) int progressIntervalSeconds,
             boolean serverSideCopy,

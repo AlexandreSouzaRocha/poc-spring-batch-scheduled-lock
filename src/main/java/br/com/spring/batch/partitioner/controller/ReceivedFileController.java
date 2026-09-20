@@ -6,6 +6,7 @@ import java.util.Optional;
 
 import br.com.spring.batch.partitioner.model.document.ReceivedFileDocument;
 import br.com.spring.batch.partitioner.model.enums.FileStatus;
+import br.com.spring.batch.partitioner.model.queue.MovementDependencies;
 import br.com.spring.batch.partitioner.model.queue.ProcessingQueue;
 import br.com.spring.batch.partitioner.repository.OriginalFileRepository;
 import br.com.spring.batch.partitioner.repository.PartitionFileRepository;
@@ -31,13 +32,16 @@ public class ReceivedFileController {
     private final PartitionFileRepository partitions;
     private final FileVerificationService verificationService;
     private final FileStatusService statusService;
+    private final MovementDependencies dependencies;
 
     public ReceivedFileController(OriginalFileRepository originals, PartitionFileRepository partitions,
-                                  FileVerificationService verificationService, FileStatusService statusService) {
+                                  FileVerificationService verificationService, FileStatusService statusService,
+                                  MovementDependencies dependencies) {
         this.originals = originals;
         this.partitions = partitions;
         this.verificationService = verificationService;
         this.statusService = statusService;
+        this.dependencies = dependencies;
     }
 
     @GetMapping
@@ -48,7 +52,8 @@ public class ReceivedFileController {
 
     @GetMapping("/queue")
     public ProcessingQueue queue(@RequestParam(defaultValue = "20") int limit) {
-        return ProcessingQueue.of(originals.findProcessable(), originals.findRejected(), Math.min(limit, MAX_LIMIT));
+        return ProcessingQueue.of(originals.findProcessable(), originals.findRejected(), dependencies,
+                Math.min(limit, MAX_LIMIT));
     }
 
     @PostMapping("/{id}/requeue")

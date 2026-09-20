@@ -10,7 +10,9 @@ import br.com.spring.batch.partitioner.config.properties.AppProperties.Partition
 import br.com.spring.batch.partitioner.config.properties.SchedulerProperties;
 import br.com.spring.batch.partitioner.lock.ProcessingLock;
 import br.com.spring.batch.partitioner.model.document.ReceivedFileDocument;
+import br.com.spring.batch.partitioner.model.queue.MovementDependencies;
 import br.com.spring.batch.partitioner.model.queue.ProcessingQueue;
+import br.com.spring.batch.partitioner.service.dispatch.QueueDispatch;
 import br.com.spring.batch.partitioner.repository.OriginalFileRepository;
 import br.com.spring.batch.partitioner.support.log.RequestContext;
 import br.com.spring.batch.partitioner.support.log.StructuredLogger;
@@ -23,35 +25,33 @@ public class PartitionCycleService {
     private static final StructuredLogger log = StructuredLogger.of(PartitionCycleService.class, "file-partitioning");
 
     private final OriginalFileRepository repository;
-    private final FilePartitionLauncher launcher;
     private final PartitionSettings settings;
-    private final ProcessingLock processingLock;
-    private final SchedulerProperties scheduler;
+    private final MovementDependencies dependencies;
+    private final QueueDispatch queueDispatch;
 
-    public PartitionCycleService(OriginalFileRepository repository, FilePartitionLauncher launcher,
-                                 PartitionSettings settings, ProcessingLock processingLock,
-                                 SchedulerProperties scheduler) {
+    public PartitionCycleService(OriginalFileRepository repository, PartitionSettings settings,
+                                 MovementDependencies dependencies, QueueDispatch queueDispatch) {
         this.repository = repository;
-        this.launcher = launcher;
         this.settings = settings;
-        this.processingLock = processingLock;
-        this.scheduler = scheduler;
+        this.dependencies = dependencies;
+        this.queueDispatch = queueDispatch;
     }
 
     public void processPendingFiles() {
         ProcessingQueue queue = ProcessingQueue.of(repository.findProcessable(), repository.findRejected(),
-                settings.filesPerCycle());
+                dependencies, settings.filesPerCycle());
         queue.blockedBy().ifPresent(PartitionCycleService::reportBlocked);
         if (queue.isEmpty()) {
             log.debug("queue.empty").log("nenhum arquivo liberado para processamento");
             return;
         }
         long start = System.currentTimeMillis();
-        log.info("queue.dispatch").field("files", queue.size()).field("maxConcurrentTypes", settings.maxConcurrentTypes())
+        log.info("queue.dispatch").field("files", queue.size()).field("dispatch", settings.dispatch())
+                .field("data", queue.waveDate().orElse("-"))
                 .data("fileIds", queue.files().stream().map(ReceivedFileDocument::id).toList())
                 .data("ordem", queue.files().stream().map(ReceivedFileDocument::fileName).toList())
                 .log("iniciando ciclo de particionamento");
-        dispatch(queue.byMovementGroup());
+        queueDispatch.dispatch(queue);
         log.info("queue.finish").field("files", queue.size()).field("durationMs", System.currentTimeMillis() - start)
                 .log("ciclo de particionamento concluído");
     }
@@ -64,24 +64,4 @@ public class PartitionCycleService {
                 .log("fila bloqueada: arquivos posteriores só serão processados após a resolução deste");
     }
 
-    private void dispatch(Map<String, List<ReceivedFileDocument>> groups) {
-        Semaphore permits = new Semaphore(settings.maxConcurrentTypes());
-        try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
-            groups.forEach((group, files) ->
-                    executor.submit(RequestContext.propagate(() -> launchGroup(group, files, permits))));
-        }
-    }
-
-    private void launchGroup(String group, List<ReceivedFileDocument> files, Semaphore permits) {
-        permits.acquireUninterruptibly();
-        try {
-            processingLock.tryRun(scheduler.lockNameFor(group), () -> files.forEach(this::launch));
-        } finally {
-            permits.release();
-        }
-    }
-
-    private void launch(ReceivedFileDocument file) {
-        RequestContext.run(RequestContext.childRequestId(file.id()), () -> launcher.launch(file));
-    }
 }
