@@ -56,15 +56,15 @@ TODAS AS VALIDAÇÕES PASSARAM
 PARTITIONER_INSTANCES=2 SCHEDULER_INTERVAL=5s ./scripts/ordering-test.sh
 ```
 
-`scripts/ordering-test.sh` para os particionadores, gera quatro arquivos **fora de ordem**
-(SALDO, ABERTO, FECHADO de hoje e FECHADO de ontem) e só então sobe as instâncias, de modo que a
-fila esteja formada antes do primeiro poll. Verifica:
+`scripts/ordering-test.sh` para os particionadores, gera cinco arquivos **fora de ordem** em duas
+datas (ULTIMA e ABERTO de hoje; ULTIMA, ABERTO e FECHADO de ontem) e só então sobe as instâncias, de
+modo que a fila esteja formada antes do primeiro poll. Verifica:
 
 | Verificação | O que prova |
 |---|---|
-| Fila despachada como FECHADO(ontem), FECHADO(hoje), ABERTO, SALDO | Ordenação por tipo e depois por data, independente da ordem de chegada |
-| FECHADO de ontem concluído antes do de hoje | O lock por tipo serializa o mesmo tipo, preservando a ordem por data |
-| Quatro arquivos em `COMPLETED` | O fluxo completo funciona com duas instâncias ativas |
+| ABERTO de ontem concluído antes do ULTIMA de ontem | A dependência entre tipos é respeitada dentro da data |
+| ULTIMA de ontem concluído antes do ABERTO de hoje | A barreira de data segura o dia seguinte até o anterior fechar |
+| Cinco arquivos em `COMPLETED` | O fluxo completo funciona com duas instâncias ativas |
 | Cada instância adquirindo locks de tipos diferentes | Paralelismo entre instâncias |
 | `overlaps=0` na auditoria | Nenhum lock mantido por duas instâncias ao mesmo tempo |
 

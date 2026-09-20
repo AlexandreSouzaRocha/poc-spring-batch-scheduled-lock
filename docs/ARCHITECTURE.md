@@ -244,6 +244,64 @@ A publicação é *at-least-once*: se o processo morrer entre o ack do Kafka e o
 Mongo, a mensagem é reenviada. O `blob_path` é único por partição e serve de chave de
 idempotência para o consumidor.
 
+## Ordem de processamento: onda por data e dependências entre tipos
+
+A fila processa **uma data de movimento por vez**. Nenhum arquivo do dia seguinte começa enquanto
+houver qualquer pendência do dia anterior — o dia fecha inteiro antes do próximo abrir. Dentro da
+data, os tipos obedecem a um grafo de dependências:
+
+```yaml
+app:
+  file:
+    dependencies:
+      ULTIMA: ${APP_FILE_DEPENDENCIES_ULTIMA:ABERTO}   # ULTIMA só depois de ABERTO
+```
+
+Com essa configuração e arquivos de dois dias na fila:
+
+```
+18/09:  FECHADO ─┐
+        ABERTO  ─┴─ em paralelo (tipos independentes)
+                      └─ ULTIMA  (só depois de ABERTO concluir)
+                            │
+                    [barreira: 18/09 completo]
+                            │
+19/09:  FECHADO ─┐
+        ABERTO  ─┴─ em paralelo
+                      └─ ULTIMA
+```
+
+A verificação é uma função pura sobre as listas que o ciclo já carrega: um tipo é liberado quando
+nenhum dos seus pré-requisitos tem arquivo pendente **naquela data**. Não há query nova, lock novo
+nem coordenação entre instâncias — um tipo bloqueado simplesmente não entra na fila do ciclo, em
+nenhuma instância. A latência é de um ciclo depois que o pré-requisito conclui.
+
+**Consequência na ordenação:** a data passou a ser o critério primário e o tipo virou desempate
+dentro dela, invertendo o critério anterior. Um arquivo em `ERROR` numa data futura não impede a
+data corrente; ele bloqueia quando a onda chegar nele.
+
+**Ciclos são rejeitados no startup.** Uma configuração como `A: B` e `B: A` travaria a fila em
+silêncio, então `MovementDependencies` valida o grafo ao ser construído e a aplicação não sobe.
+
+### Modo de despacho
+
+```yaml
+app:
+  partition:
+    dispatch: ${APP_PARTITION_DISPATCH:CONCURRENT}   # CONCURRENT ou SEQUENTIAL
+```
+
+| Modo | Locks | Comportamento |
+|---|---|---|
+| `CONCURRENT` | um por tipo | Tipos independentes rodam em paralelo, inclusive entre instâncias |
+| `SEQUENTIAL` | um global | Um arquivo por vez, na ordem da fila; a segunda instância fica em espera |
+
+O `SEQUENTIAL` restaura o comportamento anterior ao lock por tipo. Ele tem um custo que não é óbvio:
+como **todo** o trabalho passa por um único lock, o `lock-at-least-for` (padrão 20 s) vira um pedágio
+em cada transição de onda. Numa medição com cinco arquivos em duas datas, o total foi de 62 s no modo
+sequencial contra 26 s no concorrente — e a diferença veio principalmente dessa espera, não da perda
+de paralelismo. Quem usar `SEQUENTIAL` deve reduzir o `lock-at-least-for`.
+
 ## ShedLock: um lock por tipo de movimento
 
 Não existe lock de ciclo. Cada tipo de movimento tem o seu próprio lock, derivado de
