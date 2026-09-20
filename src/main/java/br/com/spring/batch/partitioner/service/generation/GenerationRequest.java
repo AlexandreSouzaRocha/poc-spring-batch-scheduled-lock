@@ -8,10 +8,11 @@ import java.util.stream.IntStream;
 
 import br.com.spring.batch.partitioner.model.enums.MovementType;
 import br.com.spring.batch.partitioner.model.layout.FileHeader;
+import br.com.spring.batch.partitioner.model.layout.FileLayout;
 import br.com.spring.batch.partitioner.storage.BlobPaths;
 
 public record GenerationRequest(long lines, MovementType movementType, LocalDate movementDate, int files,
-                                boolean invalidHeader) {
+                                boolean invalidHeader, FileLayout layout) {
 
     private static final DateTimeFormatter NAME_DATE = DateTimeFormatter.ofPattern("yyyy.MM.dd");
     private static final DateTimeFormatter NAME_TIME = DateTimeFormatter.ofPattern("HH.mm.ss");
@@ -23,7 +24,7 @@ public record GenerationRequest(long lines, MovementType movementType, LocalDate
     }
 
     public byte[] headerLineBytes() {
-        byte[] line = header().lineBytes();
+        byte[] line = header().lineBytes(layout);
         line[0] = invalidHeader ? INVALID_INDICATOR : line[0];
         return line;
     }

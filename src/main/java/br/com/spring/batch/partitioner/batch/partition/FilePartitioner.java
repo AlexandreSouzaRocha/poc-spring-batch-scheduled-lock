@@ -5,6 +5,7 @@ import java.util.Map;
 
 import br.com.spring.batch.partitioner.batch.step.FileStepSupport;
 import br.com.spring.batch.partitioner.model.document.ReceivedFileDocument;
+import br.com.spring.batch.partitioner.model.layout.FileLayout;
 import br.com.spring.batch.partitioner.model.partition.PartitionPlan;
 import br.com.spring.batch.partitioner.support.log.StructuredLogger;
 
@@ -17,16 +18,18 @@ public class FilePartitioner implements Partitioner {
 
     private final FileStepSupport support;
     private final String fileId;
+    private final FileLayout layout;
 
-    public FilePartitioner(FileStepSupport support, String fileId) {
+    public FilePartitioner(FileStepSupport support, String fileId, FileLayout layout) {
         this.support = support;
         this.fileId = fileId;
+        this.layout = layout;
     }
 
     @Override
     public Map<String, ExecutionContext> partition(int gridSize) {
         ReceivedFileDocument original = support.load(fileId);
-        PartitionPlan plan = PartitionPlan.split(original.lineCount(), original.partitionCount());
+        PartitionPlan plan = PartitionPlan.split(original.lineCount(), original.partitionCount(), layout);
         Map<String, ExecutionContext> contexts = new LinkedHashMap<>();
         plan.ranges().forEach(range -> contexts.put(range.stepName(), range.toExecutionContext()));
         log.info("partition.plan").field("fileId", fileId).field("partitions", plan.size())

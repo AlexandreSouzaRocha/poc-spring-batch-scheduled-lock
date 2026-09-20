@@ -1,6 +1,8 @@
 package br.com.spring.batch.partitioner.model.partition;
 
 import java.util.List;
+
+import br.com.spring.batch.partitioner.model.layout.FileLayout;
 import java.util.stream.IntStream;
 
 public final class PartitionPlan {
@@ -11,7 +13,7 @@ public final class PartitionPlan {
         this.ranges = List.copyOf(ranges);
     }
 
-    public static PartitionPlan split(long totalLines, int requestedPartitions) {
+    public static PartitionPlan split(long totalLines, int requestedPartitions, FileLayout layout) {
         requirePositive(totalLines, "totalLines");
         requirePositive(requestedPartitions, "requestedPartitions");
         int partitions = effectivePartitionCount(totalLines, requestedPartitions);
@@ -20,7 +22,7 @@ public final class PartitionPlan {
         return new PartitionPlan(IntStream.range(0, partitions)
                 .mapToObj(position -> PartitionRange.of(position + 1,
                         firstLineOf(position, baseLines, remainder),
-                        baseLines + extraLine(position, remainder)))
+                        baseLines + extraLine(position, remainder), layout))
                 .toList());
     }
 

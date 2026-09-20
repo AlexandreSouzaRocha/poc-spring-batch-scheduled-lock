@@ -4,6 +4,7 @@ import br.com.spring.batch.partitioner.batch.listener.FileStatusJobListener;
 import br.com.spring.batch.partitioner.batch.listener.JobMetricsListener;
 import br.com.spring.batch.partitioner.batch.listener.StepMetricsListener;
 import br.com.spring.batch.partitioner.batch.partition.FilePartitioner;
+import br.com.spring.batch.partitioner.model.layout.FileLayout;
 import br.com.spring.batch.partitioner.batch.step.FileStepSupport;
 import br.com.spring.batch.partitioner.batch.tasklet.CleanupPartitionsTasklet;
 import br.com.spring.batch.partitioner.batch.tasklet.MoveOriginalTasklet;
@@ -57,9 +58,9 @@ public class FilePartitionJobConfig {
 
     @Bean
     @JobScope
-    public FilePartitioner filePartitioner(FileStepSupport support,
+    public FilePartitioner filePartitioner(FileStepSupport support, FileLayout layout,
                                            @Value("#{jobParameters['" + FileJobParameters.FILE_ID + "']}") String fileId) {
-        return new FilePartitioner(support, fileId);
+        return new FilePartitioner(support, fileId, layout);
     }
 
     @Bean

@@ -6,6 +6,7 @@ import java.time.LocalDate;
 import br.com.spring.batch.partitioner.model.enums.MovementType;
 import br.com.spring.batch.partitioner.model.layout.FileHeader;
 import br.com.spring.batch.partitioner.model.layout.FileLayout;
+import br.com.spring.batch.partitioner.model.layout.LineSeparator;
 import br.com.spring.batch.partitioner.model.layout.InvalidFileException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -17,16 +18,18 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class FileHeaderTest {
 
+    private static final FileLayout LAYOUT = new FileLayout(LineSeparator.LF);
+
     @ParameterizedTest
     @EnumSource(MovementType.class)
     void parsesEveryMovementTypeWithPadding(MovementType type) {
         FileHeader header = new FileHeader(LocalDate.of(2026, 9, 16), type);
 
-        FileHeader parsed = FileHeader.parse(header.lineBytes());
+        FileHeader parsed = FileHeader.parse(header.lineBytes(LAYOUT), LAYOUT);
 
         assertThat(parsed).isEqualTo(header);
         assertThat(header.text()).hasSize(FileLayout.HEADER_LENGTH);
-        assertThat(header.lineBytes()).hasSize(FileLayout.HEADER_LINE_BYTES);
+        assertThat(header.lineBytes(LAYOUT)).hasSize(LAYOUT.headerLineBytes());
     }
 
     @Test
@@ -41,13 +44,13 @@ class FileHeaderTest {
     void rejectsInvalidHeaders(String header) {
         byte[] bytes = header.getBytes(StandardCharsets.US_ASCII);
 
-        assertThatThrownBy(() -> FileHeader.parse(bytes)).isInstanceOf(InvalidFileException.class);
+        assertThatThrownBy(() -> FileHeader.parse(bytes, LAYOUT)).isInstanceOf(InvalidFileException.class);
     }
 
     @Test
     void rejectsHeaderLongerThanLayout() {
         byte[] bytes = "H2026-09-16ABERTO X\n".getBytes(StandardCharsets.US_ASCII);
 
-        assertThatThrownBy(() -> FileHeader.parse(bytes)).isInstanceOf(InvalidFileException.class);
+        assertThatThrownBy(() -> FileHeader.parse(bytes, LAYOUT)).isInstanceOf(InvalidFileException.class);
     }
 }

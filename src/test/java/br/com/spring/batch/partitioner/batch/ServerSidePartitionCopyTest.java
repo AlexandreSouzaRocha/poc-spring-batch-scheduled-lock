@@ -62,7 +62,7 @@ class ServerSidePartitionCopyTest {
 
     private static ProgressCounter counter(long totalBytes) {
         PartitionSettings settings = new PartitionSettings(10, 3, 1, 20, 4, 0, true, 64);
-        return new PartitionProgressReporter(new AppProperties(null, null, settings, null))
+        return new PartitionProgressReporter(new AppProperties(null, null, settings, null, null))
                 .track("file", 1, 1, totalBytes);
     }
 

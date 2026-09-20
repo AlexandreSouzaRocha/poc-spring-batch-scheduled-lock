@@ -2,6 +2,9 @@ package br.com.spring.batch.partitioner.config.properties;
 
 import java.time.Duration;
 
+import br.com.spring.batch.partitioner.model.layout.FileLayout;
+import br.com.spring.batch.partitioner.model.layout.LineSeparator;
+
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -16,7 +19,15 @@ public record AppProperties(
         @Valid @NotNull BlobSettings blob,
         @Valid @NotNull FolderSettings folders,
         @Valid @NotNull PartitionSettings partition,
-        @Valid @NotNull KafkaSettings kafka) {
+        @Valid @NotNull KafkaSettings kafka,
+        @Valid @NotNull FileSettings file) {
+
+    public record FileSettings(@NotNull LineSeparator lineSeparator) {
+
+        public FileLayout layout() {
+            return new FileLayout(lineSeparator);
+        }
+    }
 
     public record BlobSettings(
             @NotBlank String endpoint,

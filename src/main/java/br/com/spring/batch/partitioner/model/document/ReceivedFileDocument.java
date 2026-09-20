@@ -5,6 +5,7 @@ import java.time.Instant;
 import br.com.spring.batch.partitioner.model.enums.FileRole;
 import br.com.spring.batch.partitioner.model.enums.FileStatus;
 import br.com.spring.batch.partitioner.model.enums.MovementType;
+import br.com.spring.batch.partitioner.model.layout.FileLayout;
 import br.com.spring.batch.partitioner.model.partition.PartitionRange;
 
 import org.springframework.data.annotation.Id;
@@ -30,9 +31,10 @@ public record ReceivedFileDocument(
                 null, ExecutionInfo.notStarted(), AuditInfo.createdAt(now));
     }
 
-    public ReceivedFileDocument uploadedPartition(PartitionRange range, String fileName, String path, Instant now) {
+    public ReceivedFileDocument uploadedPartition(PartitionRange range, String fileName, String path,
+            long sizeBytes, Instant now) {
         return new ReceivedFileDocument(partitionId(range.index()), FileRole.PARTITION, id, fileName,
-                FileStatus.UPLOADED, BlobLocation.written(blob.sourcePath(), path, range.fileSizeBytes()),
+                FileStatus.UPLOADED, BlobLocation.written(blob.sourcePath(), path, sizeBytes),
                 movement, PartitioningInfo.ofPartition(range, partitioning.count()),
                 ExecutionInfo.inheritedFrom(execution), AuditInfo.createdAt(now));
     }
@@ -65,8 +67,8 @@ public record ReceivedFileDocument(
         return movement != null;
     }
 
-    public byte[] headerLineBytes() {
-        return movement.headerLineBytes();
+    public byte[] headerLineBytes(FileLayout layout) {
+        return movement.headerLineBytes(layout);
     }
 
     public MovementType movementType() {

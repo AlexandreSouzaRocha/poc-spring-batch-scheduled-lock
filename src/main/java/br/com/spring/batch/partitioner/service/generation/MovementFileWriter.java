@@ -38,7 +38,7 @@ public class MovementFileWriter {
         FileHeader header = request.header();
         long start = System.currentTimeMillis();
         writeContent(path, request);
-        long sizeBytes = FileLayout.HEADER_LINE_BYTES + lines * FileLayout.RECORD_LINE_BYTES;
+        long sizeBytes = request.layout().headerLineBytes() + lines * request.layout().recordLineBytes();
         Throughput throughput = new Throughput(new StepVolume(lines, sizeBytes),
                 Duration.ofMillis(System.currentTimeMillis() - start));
         GeneratedFile generated = new GeneratedFile(fileName, path, header.movementType().name(),
@@ -51,7 +51,7 @@ public class MovementFileWriter {
     }
 
     private void writeContent(String path, GenerationRequest request) {
-        DetailRecordBuilder records = new DetailRecordBuilder(request.header().movementDateText());
+        DetailRecordBuilder records = new DetailRecordBuilder(request.header().movementDateText(), request.layout());
         try (BlobUpload upload = writer.open(path)) {
             OutputStream output = upload.output();
             output.write(request.headerLineBytes());

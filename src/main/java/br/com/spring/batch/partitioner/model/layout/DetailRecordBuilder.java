@@ -21,13 +21,15 @@ public final class DetailRecordBuilder {
     private static final long MAX_AMOUNT = 100_000_000_000L;
     private static final int DECIMAL_BASE = 10;
 
-    private final byte[] line = new byte[FileLayout.RECORD_LINE_BYTES];
+    private final byte[] line;
 
-    public DetailRecordBuilder(String movementDate) {
+    public DetailRecordBuilder(String movementDate, FileLayout layout) {
+        this.line = new byte[layout.recordLineBytes()];
         line[0] = FileLayout.DETAIL_INDICATOR;
         byte[] date = movementDate.getBytes(StandardCharsets.US_ASCII);
         System.arraycopy(date, 0, line, DATE_OFFSET, date.length);
-        line[FileLayout.RECORD_LENGTH] = FileLayout.LINE_SEPARATOR;
+        byte[] separator = layout.separator().bytes();
+        System.arraycopy(separator, 0, line, FileLayout.RECORD_LENGTH, separator.length);
     }
 
     public byte[] next(long sequence) {

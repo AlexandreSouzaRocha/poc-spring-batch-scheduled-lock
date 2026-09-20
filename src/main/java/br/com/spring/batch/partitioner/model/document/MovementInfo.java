@@ -22,7 +22,7 @@ public record MovementInfo(
         return new MovementInfo(null, fileName.type(), fileName.movementDate());
     }
 
-    public byte[] headerLineBytes() {
-        return (header + (char) FileLayout.LINE_SEPARATOR).getBytes(StandardCharsets.US_ASCII);
+    public byte[] headerLineBytes(FileLayout layout) {
+        return (header + layout.separator().text()).getBytes(StandardCharsets.US_ASCII);
     }
 }

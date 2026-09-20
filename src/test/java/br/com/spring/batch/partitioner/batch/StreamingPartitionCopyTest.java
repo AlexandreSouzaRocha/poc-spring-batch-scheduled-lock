@@ -54,7 +54,7 @@ class StreamingPartitionCopyTest {
 
     private static ProgressCounter counter(long totalBytes) {
         PartitionSettings settings = new PartitionSettings(10, 3, 1, 20, 4, 0, false, 64);
-        AppProperties properties = new AppProperties(null, null, settings, null);
+        AppProperties properties = new AppProperties(null, null, settings, null, null);
         return new PartitionProgressReporter(properties).track("file", 1, 1, totalBytes);
     }
 

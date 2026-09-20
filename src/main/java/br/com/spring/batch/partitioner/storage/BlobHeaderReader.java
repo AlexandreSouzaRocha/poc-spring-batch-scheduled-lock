@@ -9,15 +9,15 @@ import org.springframework.stereotype.Component;
 @Component
 public class BlobHeaderReader {
 
-    private static final ByteRange HEADER_RANGE = new ByteRange(0, FileLayout.HEADER_LINE_BYTES);
-
     private final BlobReader reader;
+    private final FileLayout layout;
 
-    public BlobHeaderReader(BlobReader reader) {
+    public BlobHeaderReader(BlobReader reader, FileLayout layout) {
         this.reader = reader;
+        this.layout = layout;
     }
 
     public FileHeader read(String path) {
-        return FileHeader.parse(reader.read(path, HEADER_RANGE));
+        return FileHeader.parse(reader.read(path, new ByteRange(0, layout.headerLineBytes())), layout);
     }
 }

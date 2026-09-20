@@ -51,6 +51,9 @@ app:
     processed: ${APP_FOLDER_PROCESSED:processados}
     error: ${APP_FOLDER_ERROR:erros}
 
+  file:
+    line-separator: ${APP_FILE_LINE_SEPARATOR:LF}
+
   partition:
     count: ${APP_PARTITION_COUNT:10}
     max-attempts: ${APP_PARTITION_MAX_ATTEMPTS:3}

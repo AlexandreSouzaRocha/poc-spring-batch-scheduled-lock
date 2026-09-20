@@ -54,8 +54,8 @@ Collections, índices, tópico do Kafka e container do blob são criados pelos c
 ## Layout do arquivo
 
 ```
-H2026-09-16ABERTO \n                        header: 'H' + yyyy-MM-dd + tipo (7 bytes, padding à direita)
-D0042000012345620...(150 bytes)\n           detalhe: 150 bytes fixos
+H2026-09-16ABERTO <sep>                     header: 'H' + yyyy-MM-dd + tipo (7 bytes, padding à direita)
+D0042000012345620...(150 bytes)<sep>        detalhe: 150 bytes fixos
 ```
 
 Tipos: `ABERTO`, `FECHADO`, `SALDO`, `ULTIMA`. **Cada partição recebe uma cópia do header.**
@@ -64,6 +64,7 @@ Tipos: `ABERTO`, `FECHADO`, `SALDO`, `ULTIMA`. **Cada partição recebe uma cóp
 
 | Propriedade | Env | Padrão | Descrição |
 |---|---|---|---|
+| `app.file.line-separator` | `APP_FILE_LINE_SEPARATOR` | `LF` | Quebra de linha do arquivo (`LF` ou `CRLF`) |
 | `app.partition.count` | `APP_PARTITION_COUNT` | `10` | Arquivos gerados por arquivo grande |
 | `app.partition.max-attempts` | `APP_PARTITION_MAX_ATTEMPTS` | `3` | Tentativas antes de mover para `erros/` |
 | `app.partition.max-concurrent-types` | `APP_PARTITION_MAX_CONCURRENT_TYPES` | `1` | Tipos de movimento processados em paralelo por instância |

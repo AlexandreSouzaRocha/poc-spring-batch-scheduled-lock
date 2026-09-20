@@ -12,9 +12,9 @@ public record PartitionRange(int index, long firstLine, long lineCount, ByteRang
     private static final String BYTE_START = "partition.byteStart";
     private static final String BYTE_END = "partition.byteEnd";
 
-    public static PartitionRange of(int index, long firstLine, long lineCount) {
-        ByteRange bytes = new ByteRange(FileLayout.byteOffsetOfLine(firstLine),
-                FileLayout.byteOffsetOfLine(firstLine + lineCount));
+    public static PartitionRange of(int index, long firstLine, long lineCount, FileLayout layout) {
+        ByteRange bytes = new ByteRange(layout.byteOffsetOfLine(firstLine),
+                layout.byteOffsetOfLine(firstLine + lineCount));
         return new PartitionRange(index, firstLine, lineCount, bytes);
     }
 
@@ -33,8 +33,8 @@ public record PartitionRange(int index, long firstLine, long lineCount, ByteRang
         return context;
     }
 
-    public long fileSizeBytes() {
-        return FileLayout.HEADER_LINE_BYTES + bytes.length();
+    public long fileSizeBytes(FileLayout layout) {
+        return layout.headerLineBytes() + bytes.length();
     }
 
     public String stepName() {

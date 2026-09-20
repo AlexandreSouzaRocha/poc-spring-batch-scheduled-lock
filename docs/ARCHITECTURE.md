@@ -31,6 +31,40 @@ O particionamento consome a `received_file_management`, não o blob. Assim, um a
 de `entrada/` (movido para `processados/` antes de uma falha na publicação) continua recuperável,
 e uma execução órfã de uma instância que morreu é retomada no ciclo seguinte.
 
+## Quebra de linha configurável
+
+Nem todo mainframe gera o arquivo com o mesmo terminador: alguns ambientes produzem **LF** (1 byte)
+e outros **CRLF** (2 bytes). Como o particionamento calcula faixas de bytes sem ler o arquivo, essa
+diferença muda toda a aritmética de offsets.
+
+```yaml
+app:
+  file:
+    line-separator: ${APP_FILE_LINE_SEPARATOR:LF}   # LF ou CRLF
+```
+
+O `FileLayout` deixou de ser uma classe de constantes estáticas e virou um value object construído a
+partir dessa configuração. Todo o cálculo passa por ele:
+
+| Medida | LF | CRLF |
+|---|---|---|
+| Linha de header | 19 bytes | 20 bytes |
+| Linha de detalhe | 151 bytes | 152 bytes |
+| Offset da linha N | `19 + N × 151` | `20 + N × 152` |
+
+**Validação obrigatória.** Uma configuração errada não produz erro óbvio: ela desloca todos os
+offsets e geraria partições corrompidas silenciosamente. Por isso o header é validado contra o
+separador configurado na leitura — se o byte seguinte ao header não corresponder, o arquivo é
+rejeitado como inválido:
+
+```
+quebra de linha do arquivo não corresponde ao layout configurado (LF): byte 18 é 0xd
+```
+
+Como o indicador `H` e o tamanho do header são fixos, essa verificação é determinística: o byte na
+posição 18 é `0x0A` num arquivo LF e `0x0D` num arquivo CRLF. Uma troca de ambiente sem a
+configuração correspondente falha no primeiro arquivo, e não depois de gravar partições erradas.
+
 ## Paralelismo do particionamento
 
 São dois níveis, ambos com virtual threads:

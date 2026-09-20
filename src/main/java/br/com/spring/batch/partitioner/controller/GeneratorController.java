@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Optional;
 
 import br.com.spring.batch.partitioner.model.enums.MovementType;
+import br.com.spring.batch.partitioner.model.layout.FileLayout;
 import br.com.spring.batch.partitioner.service.generation.FileGeneratorService;
 import br.com.spring.batch.partitioner.service.generation.GeneratedFile;
 import br.com.spring.batch.partitioner.service.generation.GenerationRequest;
@@ -26,9 +27,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class GeneratorController {
 
     private final FileGeneratorService generatorService;
+    private final FileLayout layout;
 
-    public GeneratorController(FileGeneratorService generatorService) {
+    public GeneratorController(FileGeneratorService generatorService, FileLayout layout) {
         this.generatorService = generatorService;
+        this.layout = layout;
     }
 
     @PostMapping("/files")
@@ -39,6 +42,7 @@ public class GeneratorController {
             @RequestParam(defaultValue = "1") @Min(1) @Max(20) int files,
             @RequestParam(defaultValue = "false") boolean invalidHeader) {
         LocalDate date = Optional.ofNullable(movementDate).orElseGet(LocalDate::now);
-        return generatorService.generate(new GenerationRequest(lines, movementType, date, files, invalidHeader));
+        return generatorService.generate(new GenerationRequest(lines, movementType, date, files, invalidHeader,
+                layout));
     }
 }

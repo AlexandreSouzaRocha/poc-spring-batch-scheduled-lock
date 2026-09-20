@@ -2,6 +2,7 @@ package br.com.spring.batch.partitioner.batch.partition;
 
 import br.com.spring.batch.partitioner.batch.progress.ProgressCounter;
 import br.com.spring.batch.partitioner.model.document.ReceivedFileDocument;
+import br.com.spring.batch.partitioner.model.layout.FileLayout;
 import br.com.spring.batch.partitioner.model.partition.PartitionRange;
 import br.com.spring.batch.partitioner.storage.BlobPaths;
 
@@ -14,19 +15,21 @@ public class PartitionBlobWriter {
 
     private final PartitionCopy transfer;
     private final BlobPaths paths;
+    private final FileLayout layout;
 
-    public PartitionBlobWriter(PartitionCopy transfer, BlobPaths paths) {
+    public PartitionBlobWriter(PartitionCopy transfer, BlobPaths paths, FileLayout layout) {
         this.transfer = transfer;
         this.paths = paths;
+        this.layout = layout;
     }
 
     public UploadedPartition upload(ReceivedFileDocument original, PartitionRange range, ProgressCounter progress) {
         String target = paths.partitionPath(original, range.index());
         long startNanos = System.nanoTime();
         long copiedBytes = transfer.copy(original.currentPath(), range.bytes(), target,
-                original.headerLineBytes(), progress);
+                original.headerLineBytes(layout), progress);
         requireComplete(range, copiedBytes);
-        return new UploadedPartition(target, range.fileSizeBytes(), (System.nanoTime() - startNanos) / NANOS_PER_MILLI);
+        return new UploadedPartition(target, range.fileSizeBytes(layout), (System.nanoTime() - startNanos) / NANOS_PER_MILLI);
     }
 
     private static void requireComplete(PartitionRange range, long copiedBytes) {

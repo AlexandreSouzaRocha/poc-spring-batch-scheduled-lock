@@ -13,10 +13,10 @@ public record FileHeader(LocalDate movementDate, MovementType movementType) {
     private static final DateTimeFormatter DATE_FORMAT =
             DateTimeFormatter.ofPattern("uuuu-MM-dd").withResolverStyle(ResolverStyle.STRICT);
 
-    public static FileHeader parse(byte[] headerLine) {
+    public static FileHeader parse(byte[] headerLine, FileLayout layout) {
         requireLength(headerLine);
         requireIndicator(headerLine);
-        requireLineEnd(headerLine);
+        requireLineEnd(headerLine, layout);
         String type = ascii(headerLine, FileLayout.TYPE_OFFSET, FileLayout.TYPE_LENGTH);
         return new FileHeader(parseDate(ascii(headerLine, FileLayout.DATE_OFFSET, FileLayout.DATE_LENGTH)),
                 MovementType.fromHeaderField(type));
@@ -27,8 +27,8 @@ public record FileHeader(LocalDate movementDate, MovementType movementType) {
                 + String.format("%-" + FileLayout.TYPE_LENGTH + "s", movementType.name());
     }
 
-    public byte[] lineBytes() {
-        return (text() + (char) FileLayout.LINE_SEPARATOR).getBytes(StandardCharsets.US_ASCII);
+    public byte[] lineBytes(FileLayout layout) {
+        return (text() + layout.separator().text()).getBytes(StandardCharsets.US_ASCII);
     }
 
     public String movementDateText() {
@@ -49,11 +49,14 @@ public record FileHeader(LocalDate movementDate, MovementType movementType) {
         }
     }
 
-    private static void requireLineEnd(byte[] headerLine) {
+    private static void requireLineEnd(byte[] headerLine, FileLayout layout) {
         boolean hasLineEnd = headerLine.length > FileLayout.HEADER_LENGTH;
-        if (hasLineEnd && headerLine[FileLayout.HEADER_LENGTH] != FileLayout.LINE_SEPARATOR) {
-            throw new InvalidFileException("header deve ter exatamente " + FileLayout.HEADER_LENGTH + " bytes");
+        if (!hasLineEnd || layout.separator().matchesAt(headerLine, FileLayout.HEADER_LENGTH)) {
+            return;
         }
+        throw new InvalidFileException("quebra de linha do arquivo não corresponde ao layout configurado ("
+                + layout.separator() + "): byte " + FileLayout.HEADER_LENGTH + " é 0x"
+                + Integer.toHexString(headerLine[FileLayout.HEADER_LENGTH] & 0xFF));
     }
 
     private static LocalDate parseDate(String date) {

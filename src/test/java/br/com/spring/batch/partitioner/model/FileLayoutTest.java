@@ -1,8 +1,9 @@
 package br.com.spring.batch.partitioner.model;
 
-import br.com.spring.batch.partitioner.model.layout.DetailRecordBuilder;
 import br.com.spring.batch.partitioner.model.layout.FileLayout;
 import br.com.spring.batch.partitioner.model.layout.InvalidFileException;
+import br.com.spring.batch.partitioner.model.layout.LineSeparator;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -10,34 +11,49 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class FileLayoutTest {
 
-    @Test
-    void countsDetailLinesFromFileSize() {
-        long size = FileLayout.HEADER_LINE_BYTES + 1_000L * FileLayout.RECORD_LINE_BYTES;
+    private static final FileLayout LF = new FileLayout(LineSeparator.LF);
+    private static final FileLayout CRLF = new FileLayout(LineSeparator.CRLF);
 
-        assertThat(FileLayout.detailLineCount(size)).isEqualTo(1_000L);
+    @Test
+    @DisplayName("CRLF acrescenta um byte por linha, no header e no detalhe")
+    void countsTheExtraByteOfCrlf() {
+        assertThat(LF.headerLineBytes()).isEqualTo(19);
+        assertThat(LF.recordLineBytes()).isEqualTo(151);
+        assertThat(CRLF.headerLineBytes()).isEqualTo(20);
+        assertThat(CRLF.recordLineBytes()).isEqualTo(152);
     }
 
     @Test
-    void rejectsFileWithoutDetailLines() {
-        assertThatThrownBy(() -> FileLayout.detailLineCount(FileLayout.HEADER_LINE_BYTES))
-                .isInstanceOf(InvalidFileException.class);
+    @DisplayName("conta as linhas de detalhe pelo tamanho do arquivo em cada separador")
+    void countsDetailLines() {
+        assertThat(LF.detailLineCount(19 + 151 * 1000)).isEqualTo(1000);
+        assertThat(CRLF.detailLineCount(20 + 152 * 1000)).isEqualTo(1000);
     }
 
     @Test
-    void rejectsFileWithPartialLine() {
-        long size = FileLayout.HEADER_LINE_BYTES + 10L * FileLayout.RECORD_LINE_BYTES + 3;
-
-        assertThatThrownBy(() -> FileLayout.detailLineCount(size)).isInstanceOf(InvalidFileException.class);
+    @DisplayName("calcula o offset da linha somando o separador de cada linha anterior")
+    void calculatesByteOffset() {
+        assertThat(LF.byteOffsetOfLine(0)).isEqualTo(19);
+        assertThat(LF.byteOffsetOfLine(10)).isEqualTo(19 + 151 * 10);
+        assertThat(CRLF.byteOffsetOfLine(0)).isEqualTo(20);
+        assertThat(CRLF.byteOffsetOfLine(10)).isEqualTo(20 + 152 * 10);
     }
 
     @Test
-    void buildsFixedLengthDetailRecords() {
-        byte[] line = new DetailRecordBuilder("2026-09-16").next(42);
+    @DisplayName("rejeita arquivo cujo tamanho nao fecha com o separador configurado")
+    void rejectsSizeFromAnotherSeparator() {
+        long crlfFile = 20 + 152 * 1000;
 
-        assertThat(line).hasSize(FileLayout.RECORD_LINE_BYTES);
-        assertThat(line[0]).isEqualTo(FileLayout.DETAIL_INDICATOR);
-        assertThat(line[FileLayout.RECORD_LENGTH]).isEqualTo(FileLayout.LINE_SEPARATOR);
-        assertThat(new String(line, 15, 10)).isEqualTo("2026-09-16");
-        assertThat(new String(line, 41, 12)).isEqualTo("000000000042");
+        assertThatThrownBy(() -> LF.detailLineCount(crlfFile))
+                .isInstanceOf(InvalidFileException.class)
+                .hasMessageContaining("incompatível com o layout LF");
+    }
+
+    @Test
+    @DisplayName("rejeita arquivo truncado ou sem linhas de detalhe")
+    void rejectsTruncatedFile() {
+        assertThatThrownBy(() -> CRLF.detailLineCount(25))
+                .isInstanceOf(InvalidFileException.class)
+                .hasMessageContaining("sem linhas de detalhe");
     }
 }

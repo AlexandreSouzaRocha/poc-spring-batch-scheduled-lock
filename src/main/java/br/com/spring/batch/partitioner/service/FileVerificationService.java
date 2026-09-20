@@ -22,17 +22,15 @@ import org.springframework.stereotype.Service;
 @Service
 public class FileVerificationService {
 
-    private static final ByteRange HEADER_RANGE = new ByteRange(0, FileLayout.HEADER_LINE_BYTES);
-
     private final OriginalFileRepository originals;
     private final PartitionFileRepository partitions;
     private final BlobInspection blobs;
 
     public FileVerificationService(OriginalFileRepository originals, PartitionFileRepository partitions,
-                                   BlobCatalog catalog, BlobReader reader, BlobPaths paths) {
+                                   BlobCatalog catalog, BlobReader reader, BlobPaths paths, FileLayout layout) {
         this.originals = originals;
         this.partitions = partitions;
-        this.blobs = new BlobInspection(catalog, reader, paths);
+        this.blobs = new BlobInspection(catalog, reader, paths, layout);
     }
 
     public Optional<VerificationReport> verify(String fileId) {
@@ -64,7 +62,7 @@ public class FileVerificationService {
         }
     }
 
-    private record BlobInspection(BlobCatalog catalog, BlobReader reader, BlobPaths paths) {
+    private record BlobInspection(BlobCatalog catalog, BlobReader reader, BlobPaths paths, FileLayout layout) {
 
         Map<String, BlobFile> partitionBlobs(ReceivedFileDocument original) {
             if (!original.hasMovement()) {
@@ -79,11 +77,11 @@ public class FileVerificationService {
         }
 
         PartitionCheck check(ReceivedFileDocument original, ReceivedFileDocument partition, BlobFile blob) {
-            long expectedSize = FileLayout.HEADER_LINE_BYTES + partition.lineCount() * FileLayout.RECORD_LINE_BYTES;
+            long expectedSize = layout.headerLineBytes() + partition.lineCount() * layout.recordLineBytes();
             boolean exists = blob != null;
             boolean sizeMatches = exists && blob.sizeBytes() == expectedSize;
-            boolean headerMatches = exists && Arrays.equals(reader.read(blob.path(), HEADER_RANGE),
-                    original.headerLineBytes());
+            boolean headerMatches = exists && Arrays.equals(reader.read(blob.path(), new ByteRange(0, layout.headerLineBytes())),
+                    original.headerLineBytes(layout));
             return new PartitionCheck(partition.currentPath(), exists, sizeMatches, headerMatches,
                     partition.audit().publishedAt() != null, partition.lineCount());
         }
