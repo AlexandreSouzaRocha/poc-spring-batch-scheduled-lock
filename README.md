@@ -1,22 +1,24 @@
 # POC — Spring Batch + Scheduler + ShedLock: particionamento atômico de arquivos
 
-Um arquivo grande chega no **Azure Blob Storage** (Azurite, localmente). Um scheduler com
-**ShedLock no MongoDB** garante que só uma instância processa cada ciclo. O
-**Spring Batch** divide o arquivo em N arquivos **em paralelo, com virtual threads**,
-move o original para `processados/`, grava cada partição na pasta do seu tipo de
-movimento e publica os metadados de cada partição no **Kafka**. O resume e o recovery
+Um arquivo grande chega no **Azure Blob Storage** (Azurite, localmente). Todas as instâncias
+listam a entrada a cada ciclo e **reservam cada arquivo no MongoDB** (insert com `_id` único ou
+*compare-and-set* de status), então só uma processa cada arquivo — sem lock. O ShedLock continua
+disponível como modo alternativo (`TYPE_LOCK` e `GLOBAL_LOCK`). O **Spring Batch** divide o arquivo
+em N arquivos **em paralelo, com virtual threads**, grava cada partição na pasta do seu tipo de
+movimento, publica os metadados de cada partição no **Kafka** e só então move o original para
+`processados/`. O resume e o recovery
 usam o JobRepository customizado no MongoDB, com a mesma estrutura do
 [poc-spring-batch](https://github.com/AlexandreSouzaRocha/poc-spring-batch).
 
 ```
-generator ──► blob entrada/ ──► scheduler único (@Scheduled + @SchedulerLock)
-                                     │ 1. lista entrada/ e registra em received_file_management
-             partitioner-1 ┐         │ 2. particiona os pendentes no mesmo ciclo
-                           ├─ disputam o lock ──► filePartitionJob (Spring Batch, JobRepository no Mongo)
+generator ──► blob entrada/ ──► @Scheduled em todas as instâncias
+                                     │ 1. lista entrada/ (+ arquivos não concluídos no Mongo)
+             partitioner-1 ┐         │ 2. tipos em paralelo; cada arquivo é reservado antes do job
+                           ├─ reservam em received_file_management ──► filePartitionJob (Spring Batch)
              partitioner-2 ┘                          │
                                                       ├─► aberto/ fechado/ saldo/ ultima/  (N partições em paralelo)
-                                                      ├─► processados/                    (original)
-                                                      └─► Kafka movimentos-particionados  (1 msg por partição)
+                                                      ├─► Kafka movimentos-particionados  (1 msg por partição)
+                                                      └─► processados/                    (original, após o Kafka)
 ```
 
 **Stack:** Spring Boot 4.1 · Java 25 (virtual threads) · Spring Batch 6 · ShedLock 7.10 ·
@@ -65,15 +67,16 @@ Tipos: `ABERTO`, `FECHADO`, `SALDO`, `ULTIMA`. **Cada partição recebe uma cóp
 | Propriedade | Env | Padrão | Descrição |
 |---|---|---|---|
 | `app.file.line-separator` | `APP_FILE_LINE_SEPARATOR` | `LF` | Quebra de linha do arquivo (`LF` ou `CRLF`) |
-| `app.file.dependencies.ULTIMA` | `APP_FILE_DEPENDENCIES_ULTIMA` | `ABERTO` | Tipos que precisam concluir antes, na mesma data |
-| `app.partition.dispatch` | `APP_PARTITION_DISPATCH` | `CONCURRENT` | `CONCURRENT` (lock por tipo) ou `SEQUENTIAL` (lock único) |
+| `app.partition.concurrency-control` | `APP_PARTITION_CONCURRENCY_CONTROL` | `CLAIM` | `CLAIM` (reserva no documento, sem lock), `TYPE_LOCK` (ShedLock por tipo) ou `GLOBAL_LOCK` (ShedLock único) |
+| `app.partition.heartbeat-interval` | `APP_PARTITION_HEARTBEAT_INTERVAL` | `10s` | Intervalo em que o job renova o `updated_at` do arquivo |
+| `app.partition.stale-after` | `APP_PARTITION_STALE_AFTER` | `2m` | Sem heartbeat por esse tempo, o arquivo em andamento é retomado por outra instância |
 | `app.partition.count` | `APP_PARTITION_COUNT` | `10` | Arquivos gerados por arquivo grande |
-| `app.partition.max-attempts` | `APP_PARTITION_MAX_ATTEMPTS` | `3` | Tentativas antes de mover para `erros/` |
+| `app.partition.max-attempts` | `APP_PARTITION_MAX_ATTEMPTS` | `3` | Tentativas antes de `FAILED` (o arquivo fica em `entrada/` para tratativa manual) |
 | `app.partition.max-concurrent-types` | `APP_PARTITION_MAX_CONCURRENT_TYPES` | `1` | Tipos de movimento processados em paralelo por instância |
 | `app.partition.threads-per-partition` | `APP_PARTITION_THREADS_PER_PARTITION` | `4` | Threads que enviam trechos da mesma partição |
 | `app.partition.progress-interval-seconds` | `APP_PARTITION_PROGRESS_INTERVAL_SECONDS` | `10` | Intervalo dos logs de progresso (`0` desliga) |
 | `app.scheduler.file-processing.interval` | `APP_SCHEDULER_INTERVAL` | `30s` | Intervalo do ciclo (polling + particionamento) |
-| `app.scheduler.file-processing.lock-at-most-for` | `APP_SCHEDULER_LOCK_AT_MOST_FOR` | `60s` | Validade do lock (renovada pelo keep-alive) |
+| `app.scheduler.file-processing.lock-at-most-for` | `APP_SCHEDULER_LOCK_AT_MOST_FOR` | `60s` | Validade do lock nos modos com ShedLock (renovada pelo keep-alive) |
 | `app.shedlock.fields.name` | `APP_SHEDLOCK_FIELD_NAME` | `_id` | Campo que guarda o nome do lock |
 | `app.shedlock.collection` | `APP_SHEDLOCK_COLLECTION` | `scheduler_locks` | Collection do lock |
 | `app.shedlock.fields.*` | `APP_SHEDLOCK_FIELD_*` | `_id`, `lock_until`, `locked_at`, `locked_by` | Nomes dos campos do lock |
@@ -97,12 +100,13 @@ Kafka acontece dentro de transação do Mongo (ver [ARCHITECTURE.md](docs/ARCHIT
 | `GET` | `/files/summary` | todas | Contagem por status |
 | `GET` | `/files/{id}` | todas | Original e partições |
 | `GET` | `/files/{id}/verification` | todas | Conferência no blob (tamanho, header, publicação) |
+| `POST` | `/files/{id}/requeue` | todas | Devolve um arquivo `FAILED` para reprocessamento (tentativas zeradas) |
 | `GET` | `/locks` | todas | Documentos de lock do ShedLock |
 | `PUT` / `DELETE` / `GET` | `/chaos` | particionadores | Injeção de falhas para teste de resiliência |
 | `GET` | `/actuator/prometheus` | todas | Timers `partitioner_step_duration` e `partitioner_job_duration` |
 
 ## Documentação
 
-* [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): fluxo, steps do job, resume e recovery, ShedLock configurável, collections e pastas.
+* [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): fluxo, steps do job, status, resume e recovery, controle de concorrência (reserva, heartbeat e ShedLock), collections e pastas.
 * [docs/OBSERVABILITY.md](docs/OBSERVABILITY.md): formato de log, STEP_METRICS/JOB_METRICS, Prometheus e auditoria do lock.
 * [docs/TESTING.md](docs/TESTING.md): testes unitários, e2e e cenários de chaos.

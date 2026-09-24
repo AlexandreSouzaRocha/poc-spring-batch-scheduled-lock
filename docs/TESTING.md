@@ -1,6 +1,6 @@
 # Testes
 
-## Unitários e integração do lock
+## Unitários e integração
 
 ```bash
 make test
@@ -11,10 +11,12 @@ make test
 | `FileHeaderTest` | Parse e formatação do header posicional (os 4 tipos, padding e headers inválidos) |
 | `FileLayoutTest` | Contagem de linhas pelo tamanho, arquivo truncado e linha de detalhe de 150 bytes |
 | `PartitionPlanTest` | Faixas contíguas, distribuição do resto, menos linhas que partições e ida e volta pelo `ExecutionContext` |
-| `BlobPathsTest` | Pastas `entrada/`, `processados/`, `<tipo>/` e `erros/` |
+| `BlobPathsTest` | Pastas `entrada/`, `processados/` e `<tipo>/` |
+| `InboxFilesTest` | Identidade do arquivo pelo nome (mesmo nome = mesmo arquivo, independente do etag); agrupamento por tipo pelo nome do arquivo, nenhum arquivo descartado e inclusão dos não concluídos que já saíram de `entrada/` |
 | `AzureBlockUploadTest` | Blocos de tamanho fixo em ordem e nenhum commit sem `commit()` |
 | `ChaosRuleTest` | Regras de injeção de falha por tentativa e partição |
 | `ErrorSummaryTest` | Resumo de erro sem stack trace |
+| `OriginalFileRepositoryIntegrationTest` | MongoDB real (Testcontainers): fencing (a retomada revoga o dono anterior, que não renova heartbeat nem muda status; só uma execução vira dona); insert duplicado gera `DuplicateKeyException`; arquivo ativo não é reservado; `FAILED_PARTITIONING` e em andamento parado viram `REPROCESSING`; 8 reservas simultâneas com um único vencedor; tentativas esgotadas viram `FAILED`; `FAILED` só volta via requeue; heartbeat mantém o arquivo vivo e não toca arquivo encerrado |
 | `ConfigurableMongoLockProviderIntegrationTest` | MongoDB real (Testcontainers): exclusão mútua com nome em `_id` e em campo customizado, collection e campos customizados, `lockAtLeastFor`, extensão só pelo dono e lock expirado assumido por outra instância |
 
 ## Teste integrado ponta a ponta
@@ -50,49 +52,25 @@ overlaps=0
 TODAS AS VALIDAÇÕES PASSARAM
 ```
 
-## Ordem de processamento e lock por tipo
-
-```bash
-PARTITIONER_INSTANCES=2 SCHEDULER_INTERVAL=5s ./scripts/ordering-test.sh
-```
-
-`scripts/ordering-test.sh` para os particionadores, gera cinco arquivos **fora de ordem** em duas
-datas (ULTIMA e ABERTO de hoje; ULTIMA, ABERTO e FECHADO de ontem) e só então sobe as instâncias, de
-modo que a fila esteja formada antes do primeiro poll. Verifica:
-
-| Verificação | O que prova |
-|---|---|
-| ABERTO de ontem concluído antes do ULTIMA de ontem | A dependência entre tipos é respeitada dentro da data |
-| ULTIMA de ontem concluído antes do ABERTO de hoje | A barreira de data segura o dia seguinte até o anterior fechar |
-| Cinco arquivos em `COMPLETED` | O fluxo completo funciona com duas instâncias ativas |
-| Cada instância adquirindo locks de tipos diferentes | Paralelismo entre instâncias |
-| `overlaps=0` na auditoria | Nenhum lock mantido por duas instâncias ao mesmo tempo |
-
-O intervalo curto de scheduler (`SCHEDULER_INTERVAL=5s`) é necessário para o teste: com o padrão de
-30 s e arquivos que processam em segundos, uma única instância termina tudo antes de a outra
-acordar, e o paralelismo não aparece.
-
 ## Resume e recovery (chaos)
 
 ```bash
-make chaos-test SCENARIO=all          # ou partition-fail | publish-fail | invalid-file | slow-io | kill-owner
+make chaos-test SCENARIO=all          # ou partition-fail | publish-fail | invalid-file | slow-io | kill-owner | zombie-owner
 LINES=2000000 ./scripts/chaos-test.sh kill-owner
 ```
 
-A falha é injetada nas duas instâncias via `PUT /chaos`, porque não se sabe qual delas terá o lock.
-
-Antes de cada cenário, o `setup` **remove arquivos em `ERROR`** deixados por cenários anteriores.
-Isso é necessário porque a fila é bloqueante: o arquivo inválido do cenário `invalid-file` barraria
-todos os cenários seguintes, que é o comportamento correto do produto, mas inviabiliza a suíte
-encadeada.
+A falha é injetada nas duas instâncias via `PUT /chaos`, porque não se sabe qual delas vai reservar
+o arquivo. Um arquivo em `FAILED` não bloqueia os demais, então os cenários rodam encadeados sem
+limpeza entre eles.
 
 | Cenário | Falha injetada | Validações |
 |---|---|---|
 | `partition-fail` | A partição 3 falha na 1ª tentativa, depois de gravada | `COMPLETED` na 2ª tentativa; o cleanup fez **rollback** das partições da 1ª tentativa; partições íntegras; Kafka só com as mensagens da tentativa bem-sucedida |
 | `publish-fail` | A publicação no Kafka falha na 1ª tentativa | `COMPLETED` na 2ª tentativa; cleanup **pulado**; cada partição gravada **uma única vez**; original movido uma única vez (resume a partir do `publishPartitionsStep`) |
 | `slow-io` | 90 s de atraso no worker (`PARTITION`), no `MOVE` e no `PUBLISH`, com o Mongo limitado a 60 s de transação | `COMPLETED` na 1ª tentativa; nenhum `NoSuchTransaction`; partições íntegras e publicadas |
-| `invalid-file` | Header com indicador `X` | `ERROR` sem retentativa; arquivo em `erros/`; nenhuma partição e nenhuma mensagem |
-| `kill-owner` | Uma partição fica parada por 300 s e o dono do lock recebe `docker kill` | A outra instância assume depois que o lock expira, marca a execução órfã como `FAILED` (`execution.recover`), refaz o particionamento e termina `COMPLETED` |
+| `invalid-file` | Header com indicador `X` | `FAILED` sem retentativa; arquivo mantido em `entrada/`; nenhuma partição e nenhuma mensagem |
+| `zombie-owner` | Uma partição fica parada por 20 s e a instância que processa o arquivo é **congelada** com `docker pause` (não morre) até a outra concluir | A outra instância retoma e conclui; ao ser descongelada, a antiga registra `file.ownership.lost`, não conclui o job, não altera o status e não publica no Kafka; partições íntegras |
+| `kill-owner` | Uma partição fica parada por 300 s e a instância que processa o arquivo recebe `docker kill` | Sem heartbeat, o `updated_at` envelhece; depois de `stale-after` a outra instância reserva o arquivo em `REPROCESSING` (`file.reprocess`), marca a execução órfã como `FAILED` (`execution.recover`), refaz o particionamento e termina `COMPLETED` |
 
 ### Manualmente
 
@@ -104,7 +82,6 @@ make chaos-off
 
 make chaos POINT=PARTITION ACTION=DELAY DELAY=300 ATTEMPT=1 PARTITION=1
 make generate LINES=1000000
-make locks
 make kill-owner
 make status
 make start-all

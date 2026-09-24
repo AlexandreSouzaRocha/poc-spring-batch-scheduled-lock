@@ -7,29 +7,37 @@ flowchart LR
     GEN["generator<br/>POST /generator/files"] -->|upload em blocos| IN[("Azure Blob<br/>entrada/")]
 
     subgraph PART["partitioner-1 / partitioner-2 (mesma imagem)"]
-        CYCLE["FileProcessingScheduler<br/>@Scheduled 30s<br/>@SchedulerLock file-processing"]
+        CYCLE["FileProcessingScheduler<br/>@Scheduled 30s"]
+        CLAIM["FileClaimService<br/>reserva do arquivo"]
         JOB["filePartitionJob<br/>(Spring Batch)"]
-        CYCLE -->|2. particiona os pendentes| JOB
+        CYCLE -->|2. por tipo, em paralelo| CLAIM
+        CLAIM -->|3. reservado| JOB
     end
 
     IN -->|1. lista entrada/| CYCLE
-    CYCLE -->|registra ORIGINAL/PENDING| RFM[("MongoDB<br/>received_file_management")]
-    RFM -->|PENDING / PARTITIONING / FAILED| CYCLE
+    CLAIM <-->|insert PARTITIONING<br/>ou CAS para REPROCESSING| RFM[("MongoDB<br/>received_file_management")]
+    RFM -->|em andamento / FAILED_PARTITIONING| CYCLE
+    JOB -.->|heartbeat updated_at| RFM
     JOB -->|partições em paralelo| OUT[("Azure Blob<br/>aberto/ fechado/ saldo/ ultima/")]
-    JOB -->|move original| PROC[("Azure Blob<br/>processados/")]
-    JOB -->|resume/recovery| JR[("MongoDB<br/>batch_job_* / batch_step_*")]
     JOB -->|1 msg por partição| KAFKA[["Kafka<br/>movimentos-particionados"]]
-    CYCLE -.->|lock| LOCK[("MongoDB<br/>scheduler_locks")]
+    JOB -->|move original, depois do Kafka| PROC[("Azure Blob<br/>processados/")]
+    JOB -->|resume/recovery| JR[("MongoDB<br/>batch_job_* / batch_step_*")]
 ```
 
-As duas instâncias rodam o mesmo scheduler a cada 30 segundos, mas o ShedLock só deixa **uma**
-executar cada ciclo. O ciclo faz as duas coisas em sequência: lista `entrada/` e registra os
-arquivos novos, e em seguida particiona tudo que estiver pendente. Com isso, um arquivo recém
-descoberto é particionado no mesmo ciclo, sem a espera de um ciclo para o outro.
+As duas instâncias rodam o mesmo scheduler a cada 30 segundos, **sem lock** no modo padrão
+(`CLAIM`). Em cada ciclo, a instância:
 
-O particionamento consome a `received_file_management`, não o blob. Assim, um arquivo que já saiu
-de `entrada/` (movido para `processados/` antes de uma falha na publicação) continua recuperável,
-e uma execução órfã de uma instância que morreu é retomada no ciclo seguinte.
+1. **Lista todos os arquivos de `entrada/`**, sem limite, e acrescenta os documentos do Mongo que
+   ainda não terminaram (`PARTITIONING`, `REPROCESSING`, `FAILED_PARTITIONING`). Esse acréscimo
+   cobre o arquivo que já foi movido para `processados/` mas não chegou a ser marcado `COMPLETED`.
+2. **Agrupa por tipo de movimento** e processa os tipos em paralelo; dentro de um tipo, os arquivos
+   vão um de cada vez. Não há ordenação por data nem dependência entre tipos.
+3. **Reserva cada arquivo** antes de rodar o job. Quem não consegue a reserva registra no log e
+   segue para o próximo arquivo. Ver [Controle de concorrência](#controle-de-concorrência).
+
+Um arquivo com falha **permanece em `entrada/`**. Ele é retomado automaticamente enquanto houver
+tentativas (`FAILED_PARTITIONING`) e, esgotadas as tentativas, fica em `FAILED` aguardando
+tratativa manual — sem bloquear nenhum outro arquivo.
 
 ## Quebra de linha configurável
 
@@ -96,7 +104,7 @@ flowchart LR
     V["validateHeaderStep"] --> C["cleanupPartitionsStep<br/><i>roda em toda tentativa</i>"]
     C --> M["partitionMasterStep"]
     M -->|N workers<br/>virtual threads| W["partitionWorkerStep × N<br/><i>só blob</i>"]
-    M --> R["registerPartitionsStep<br/><i>insere no Mongo</i>"] --> MV["moveOriginalStep"] --> P["publishPartitionsStep"]
+    M --> R["registerPartitionsStep<br/><i>insere no Mongo</i>"] --> P["publishPartitionsStep"] --> MV["moveOriginalStep<br/><i>só depois do Kafka</i>"]
 ```
 
 | Step | Responsabilidade | Classe |
@@ -106,8 +114,8 @@ flowchart LR
 | `partitionMasterStep` | Divide as linhas em N faixas (`app.partition.count`) e executa um worker por faixa em virtual threads | `FilePartitioner`, `PartitionPlan` |
 | `partitionWorkerStep` | Grava o header e copia **só a faixa de bytes** da partição, do blob original para o blob de destino, em streaming. **Não grava nada no Mongo** | `PartitionWriterTasklet`, `PartitionBlobWriter` |
 | `registerPartitionsStep` | Só roda depois que **todas** as partições estão no blob. Confere se cada uma existe com o tamanho esperado e insere todos os documentos de uma vez (status `UPLOADED`) numa transação curta | `RegisterPartitionsTasklet`, `PartitionRegistration` |
-| `moveOriginalStep` | Move o original para `processados/` (cópia server-side + delete, idempotente) | `MoveOriginalTasklet`, `OriginalFileArchiver` |
 | `publishPartitionsStep` | Publica 1 mensagem por partição ainda não publicada, aguarda o ack do broker e só então marca `published_at` + `COMPLETED` | `PublishPartitionsTasklet`, `PartitionPublication` |
+| `moveOriginalStep` | Move o original para `processados/` (cópia server-side + delete, idempotente). É o último passo: enquanto houver falha, o original continua em `entrada/` | `MoveOriginalTasklet`, `OriginalFileArchiver` |
 
 ### Por que o particionamento é paralelo sem ler o arquivo inteiro
 
@@ -208,6 +216,7 @@ transação do Mongo**:
 * **Steps sem transação do Mongo:** todos os tasklets usam `ResourcelessTransactionManager`. O `MongoTemplate` usa `SessionSynchronization.ON_ACTUAL_TRANSACTION` e, sem transação nativa do Mongo, não abre sessão. Assim uma cópia de 1,5 GB ou um move de 15 GB não fica dentro de transação. As atualizações do `StepExecution` e do `ExecutionContext` são feitas pelo JobRepository em transações curtas próprias.
 * **Onde há transação:** só em `registerPartitionsStep` (`PartitionFileRepository.replaceAll`: remove + insere todas as partições). Dura milissegundos e roda depois de todo o upload.
 * **Demais gravações:** são operações únicas e atômicas por natureza (`updateOne` / `updateMany`), idempotentes em caso de restart.
+* **Sequências de id do JobRepository (`batch_sequences`) ficam fora da transação.** O `CustomSequenceIncrementer` usa um `MongoTemplate` próprio com `SessionSynchronization.NEVER`. Dentro da transação, todo job disputava o mesmo documento de sequência, e dois jobs simultâneos terminavam em `NoSuchTransaction` (`TransientTransactionError`) no `partitionMasterStep`, que cria as 10 step executions de uma vez. Fora da transação, o `$inc` continua atômico; o único efeito é uma lacuna na numeração quando a transação é desfeita, como numa sequence de banco.
 
 O cenário `slow-io` do chaos test força 90 s de I/O no worker, no move e na publicação, e confere
 que o arquivo termina na 1ª tentativa, sem `NoSuchTransaction`.
@@ -216,8 +225,16 @@ que o arquivo termina na 1ª tentativa, sem `NoSuchTransaction`.
 
 | Documento | Fluxo |
 |---|---|
-| Original | `PENDING` → `PARTITIONING` → `COMPLETED`, ou `FAILED` (retentativa) → `ERROR` (inválido ou tentativas esgotadas) |
+| Original | `PARTITIONING` → `COMPLETED`; em falha, `FAILED_PARTITIONING` → `REPROCESSING` → `COMPLETED`; tentativas esgotadas ou arquivo inválido → `FAILED` |
 | Partição | `UPLOADED` (inserida depois de todo o upload) → `COMPLETED` (depois do ack do Kafka, junto com `published_at`) |
+
+| Status do original | Significado | O ciclo faz |
+|---|---|---|
+| `PARTITIONING` | Primeira execução em andamento | Pula; retoma se o `updated_at` estiver parado há mais de `stale-after` |
+| `REPROCESSING` | Retomada em andamento | Igual ao `PARTITIONING` |
+| `FAILED_PARTITIONING` | Falhou e ainda tem tentativas | Reserva e retoma do passo que falhou |
+| `FAILED` | Tentativas esgotadas ou header inválido | Pula até `POST /files/{id}/requeue` |
+| `COMPLETED` | Publicado no Kafka e movido para `processados/` | — |
 
 A ordem **ack do Kafka → `published_at`/`COMPLETED`** é proposital. Se o processo morrer entre as
 duas, a mensagem é reenviada no restart (duplicata, que o consumidor resolve pelo `blob_path`).
@@ -227,137 +244,136 @@ mensagem se perderia sem que desse para detectar.
 ## Resume e recovery
 
 A identidade do job é o parâmetro `fileId`, então cada arquivo tem uma única
-`JobInstance` e cada tentativa é uma nova `JobExecution` dela.
+`JobInstance` e cada tentativa é uma nova `JobExecution` dela. A ordem dos steps é
+validar → limpar → particionar → registrar → **publicar no Kafka → mover para `processados/`**:
+o original só sai de `entrada/` depois que todas as mensagens foram confirmadas.
 
 | Onde falhou | O que acontece na próxima tentativa |
 |---|---|
-| `validateHeaderStep`, com `InvalidFileException` | Não há retentativa: o arquivo vai para `erros/` com status `ERROR` |
+| `validateHeaderStep`, com `InvalidFileException` | Não há retentativa: `FAILED` direto, arquivo mantido em `entrada/` |
 | `validateHeaderStep`, com erro transitório | Valida de novo |
 | `partitionMasterStep` (qualquer worker) | O cleanup apaga as partições da tentativa anterior e **todos** os workers rodam de novo: o particionamento é tudo ou nada. Quem decide isso é o `SimpleStepExecutionSplitter` com `allowStartIfComplete=true`, configurado no master. Esse flag no worker é ignorado pelo splitter padrão, que retomaria só as partições que falharam |
-| `registerPartitionsStep` | Particionamento pulado (`COMPLETED`), o cleanup não apaga nada e o registro é refeito. É idempotente: remove e insere de novo. Se alguma partição não estiver no blob, o step falha até esgotar as tentativas |
-| `moveOriginalStep` | Validação e particionamento são pulados (`COMPLETED`), o cleanup não apaga nada e o move é refeito. Se a cópia já existia e só faltava o delete, o move apenas conclui |
+| `registerPartitionsStep` | Particionamento pulado (`COMPLETED`), o cleanup não apaga nada e o registro é refeito. É idempotente: remove e insere de novo |
 | `publishPartitionsStep` | Todos os passos anteriores são pulados e só as partições sem `published_at` são publicadas |
-| Instância morreu no meio | O lock expira em `lock-at-most-for` e a outra instância assume. `AbandonedExecutionRecovery` marca a execução presa em `STARTED` como `FAILED` e o restart segue as regras acima |
-| `max-attempts` esgotado | O original vai para `erros/`, as partições são apagadas se nenhuma tiver sido publicada, e o status vira `ERROR` |
+| `moveOriginalStep` | Tudo antes é pulado e o move é refeito. Se a cópia já existia e só faltava o delete, o move apenas conclui |
+| Instância morreu no meio | O heartbeat para, o `updated_at` envelhece e, depois de `stale-after`, outra instância reserva o arquivo em `REPROCESSING`. O `AbandonedExecutionRecovery` marca a execução presa em `STARTED` como `FAILED` e o restart segue as regras acima |
+| `max-attempts` esgotado | `FAILED`. O arquivo e as partições já criadas ficam como estão, para a tratativa manual |
+
+Cada reserva conta uma tentativa, inclusive a retomada de uma instância que caiu. Um arquivo que
+derruba o pod sempre (falta de memória, por exemplo) vira `FAILED` depois de `max-attempts`, em
+vez de ficar em loop.
+
+A tratativa manual tem dois caminhos: `POST /files/{id}/requeue` (de `FAILED` para
+`FAILED_PARTITIONING`, com as tentativas zeradas), quando a causa foi resolvida fora do arquivo; ou o
+reprocessamento pelo mainframe, que gera um arquivo com **outro nome** e, portanto, um registro novo.
 
 A publicação é *at-least-once*: se o processo morrer entre o ack do Kafka e o commit no
 Mongo, a mensagem é reenviada. O `blob_path` é único por partição e serve de chave de
 idempotência para o consumidor.
 
-## Ordem de processamento: onda por data e dependências entre tipos
-
-A fila processa **uma data de movimento por vez**. Nenhum arquivo do dia seguinte começa enquanto
-houver qualquer pendência do dia anterior — o dia fecha inteiro antes do próximo abrir. Dentro da
-data, os tipos obedecem a um grafo de dependências:
-
-```yaml
-app:
-  file:
-    dependencies:
-      ULTIMA: ${APP_FILE_DEPENDENCIES_ULTIMA:ABERTO}   # ULTIMA só depois de ABERTO
-```
-
-Com essa configuração e arquivos de dois dias na fila:
-
-```
-18/09:  FECHADO ─┐
-        ABERTO  ─┴─ em paralelo (tipos independentes)
-                      └─ ULTIMA  (só depois de ABERTO concluir)
-                            │
-                    [barreira: 18/09 completo]
-                            │
-19/09:  FECHADO ─┐
-        ABERTO  ─┴─ em paralelo
-                      └─ ULTIMA
-```
-
-A verificação é uma função pura sobre as listas que o ciclo já carrega: um tipo é liberado quando
-nenhum dos seus pré-requisitos tem arquivo pendente **naquela data**. Não há query nova, lock novo
-nem coordenação entre instâncias — um tipo bloqueado simplesmente não entra na fila do ciclo, em
-nenhuma instância. A latência é de um ciclo depois que o pré-requisito conclui.
-
-**Consequência na ordenação:** a data passou a ser o critério primário e o tipo virou desempate
-dentro dela, invertendo o critério anterior. Um arquivo em `ERROR` numa data futura não impede a
-data corrente; ele bloqueia quando a onda chegar nele.
-
-**Ciclos são rejeitados no startup.** Uma configuração como `A: B` e `B: A` travaria a fila em
-silêncio, então `MovementDependencies` valida o grafo ao ser construído e a aplicação não sobe.
-
-### Modo de despacho
+## Controle de concorrência
 
 ```yaml
 app:
   partition:
-    dispatch: ${APP_PARTITION_DISPATCH:CONCURRENT}   # CONCURRENT ou SEQUENTIAL
+    concurrency-control: ${APP_PARTITION_CONCURRENCY_CONTROL:CLAIM}   # CLAIM | TYPE_LOCK | GLOBAL_LOCK
+    max-concurrent-types: ${APP_PARTITION_MAX_CONCURRENT_TYPES:1}
+    heartbeat-interval: ${APP_PARTITION_HEARTBEAT_INTERVAL:10s}
+    stale-after: ${APP_PARTITION_STALE_AFTER:2m}
 ```
 
-| Modo | Locks | Comportamento |
+| Modo | Lock | Comportamento |
 |---|---|---|
-| `CONCURRENT` | um por tipo | Tipos independentes rodam em paralelo, inclusive entre instâncias |
-| `SEQUENTIAL` | um global | Um arquivo por vez, na ordem da fila; a segunda instância fica em espera |
+| `CLAIM` (padrão) | nenhum | Tipos em paralelo; a reserva no próprio documento do arquivo garante que só uma instância processe cada arquivo |
+| `TYPE_LOCK` | ShedLock por tipo (`file-processing-<tipo>`) | Tipos em paralelo, e o mesmo tipo nunca roda em duas instâncias ao mesmo tempo |
+| `GLOBAL_LOCK` | ShedLock único (`file-processing`) | Um arquivo por vez no cluster inteiro |
 
-O `SEQUENTIAL` restaura o comportamento anterior ao lock por tipo. Ele tem um custo que não é óbvio:
-como **todo** o trabalho passa por um único lock, o `lock-at-least-for` (padrão 20 s) vira um pedágio
-em cada transição de onda. Numa medição com cinco arquivos em duas datas, o total foi de 62 s no modo
-sequencial contra 26 s no concorrente — e a diferença veio principalmente dessa espera, não da perda
-de paralelismo. Quem usar `SEQUENTIAL` deve reduzir o `lock-at-least-for`.
+A reserva descrita abaixo roda nos três modos; os locks são uma camada a mais, não um substituto.
 
-## ShedLock: um lock por tipo de movimento
+`max-concurrent-types` limita quantos tipos **uma** instância processa ao mesmo tempo. No `CLAIM`,
+duas instâncias podem processar dois arquivos do **mesmo** tipo em paralelo — quem perde a reserva
+do primeiro segue para o segundo. Com um arquivo por tipo por dia isso só acontece quando há um
+arquivo de outro dia pendente; quem precisar da exclusividade por tipo entre instâncias usa
+`TYPE_LOCK`.
 
-Não existe lock de ciclo. Cada tipo de movimento tem o seu próprio lock, derivado de
-`app.scheduler.file-processing.lock-name`:
+### Reserva do arquivo
 
-| Lock | Protege |
+| Situação do arquivo listado | Operação | Resultado |
+|---|---|---|
+| Sem documento | `insert` já com status `PARTITIONING` e `attempts = 1` | O `_id` (derivado do nome do arquivo) é a reserva. Quem recebe `DuplicateKeyException` registra `file.concurrent` e segue para o próximo |
+| `FAILED_PARTITIONING` | `findAndModify` com filtro `status = FAILED_PARTITIONING AND attempts < max` | Vira `REPROCESSING`, `attempts + 1` |
+| `PARTITIONING`/`REPROCESSING` parado | `findAndModify` com filtro `status em andamento AND updated_at < agora - stale-after AND attempts < max` | Vira `REPROCESSING`, `attempts + 1`, token de posse limpo |
+| `COMPLETED` e de novo em `entrada/` | — | `file.duplicate` em WARN: o mesmo nome já foi processado; o arquivo é ignorado até tratativa manual |
+| Parado e sem tentativas | `updateOne` com o mesmo filtro e `attempts >= max` | Vira `FAILED` |
+| Qualquer outro caso | — | `file.skip` em DEBUG e segue |
+
+O `findAndModify` é atômico no documento: a primeira instância muda o status e o `updated_at` na
+mesma operação, e a segunda não encontra mais nada que satisfaça o filtro. Não há lock explícito
+nem transação — é um *compare-and-set*. O teste `OriginalFileRepositoryIntegrationTest` dispara 8
+reservas simultâneas do mesmo arquivo e confere que só uma vence.
+
+### Heartbeat no `updated_at`
+
+Sem lock, o que distingue um pod que morreu de um pod que ainda particiona é o `updated_at` do
+próprio documento. O `FileHeartbeat` é ligado no `beforeJob` e desligado no `afterJob`, e a cada
+`heartbeat-interval` faz um `$set updated_at` filtrado por status em andamento — um toque atrasado
+depois do fim do job não altera nada. Não há campo nem collection novos.
+
+`stale-after` precisa ser maior que `heartbeat-interval` (a aplicação não sobe se não for). Com
+10 s e 2 min, uma instância só é considerada morta depois de 12 toques perdidos. O relógio usado é o
+de cada pod; com NTP, a diferença entre eles é irrelevante nessa escala.
+
+### Fencing: a instância que volta de um congelamento
+
+A reserva impede que duas instâncias **retomem** o mesmo arquivo. O caso que sobra é outro: a
+instância A não morreu, só **congelou** por mais de `stale-after` (pausa longa de GC, CPU
+estrangulada, rede cortada até o Mongo). B retoma o arquivo legitimamente e, quando A volta, o job de
+A continua de onde estava — sem saber que perdeu o arquivo.
+
+O tratamento usa o campo que já existe `execution.last_job_execution_id` como **token de posse**
+(*fencing token*), sem campo novo:
+
+| Momento | Regra |
 |---|---|
-| `file-processing-poll` | A listagem do blob e o registro dos arquivos novos |
-| `file-processing-fechado` | O processamento dos arquivos FECHADO |
-| `file-processing-aberto` | O processamento dos arquivos ABERTO |
-| `file-processing-ultima` | O processamento dos arquivos ULTIMA |
-| `file-processing-saldo` | O processamento dos arquivos SALDO |
-| `file-processing-desconhecido` | Arquivos que o poll não conseguiu classificar |
+| Reserva para `REPROCESSING` | Limpa o token na mesma operação atômica: A perde a posse no instante em que B reserva |
+| `beforeJob` | Grava o id da execução como token, só se o token estiver vazio e o arquivo em andamento |
+| Heartbeat | Só renova se o token for o da própria execução; se não for, registra `file.ownership.lost` e para |
+| Início de cada step (inclusive cada worker de partição) | Confere o token no documento que o step já carrega; se for de outra execução, lança `FileOwnershipLostException` e o job de A falha |
+| `COMPLETED`, `FAILED_PARTITIONING`, `FAILED` | O update exige o token da execução; o de A não casa, e o status de B nunca é sobrescrito |
 
-O efeito é duplo:
+O que A ainda pode fazer é terminar o que estava **dentro** de um step quando congelou: gravar uma
+partição com o mesmo conteúdo que B grava, ou reenviar mensagens que o consumidor já deduplica pelo
+`blob_path`. Nenhum desses efeitos altera o resultado. O cenário `zombie-owner` do chaos test
+congela a instância com `docker pause` e confere exatamente isso.
 
-* **Tipos diferentes rodam em paralelo**, inclusive em instâncias diferentes, porque cada um disputa
-  um lock distinto. É o que permite duas instâncias trabalharem ao mesmo tempo.
-* **O mesmo tipo nunca roda duas vezes em paralelo**, o que preserva a ordem por data dentro do
-  tipo: o FECHADO de 18/09 termina antes de o de 19/09 começar.
+### Locks do ShedLock (`TYPE_LOCK` e `GLOBAL_LOCK`)
 
-Dentro de um lock, todos os arquivos pendentes daquele tipo são processados em sequência, na ordem
-da fila, sem soltar e readquirir o lock a cada arquivo.
+Os nomes derivam de `app.scheduler.file-processing.lock-name`:
 
-`app.partition.max-concurrent-types` limita quantos tipos uma única instância processa ao mesmo
-tempo (padrão `1`). O paralelismo entre instâncias não depende dessa configuração.
+| Lock | Modo | Protege |
+|---|---|---|
+| `file-processing-aberto`, `-fechado`, `-saldo`, `-ultima` | `TYPE_LOCK` | Os arquivos daquele tipo |
+| `file-processing-desconhecido` | `TYPE_LOCK` | Arquivos cujo nome não segue o padrão `MOV_<TIPO>_yyyy.MM.dd...` |
+| `file-processing` | `GLOBAL_LOCK` | Todos os arquivos |
 
-O registro dos arquivos é idempotente (`insertIfAbsent`), então o lock de poll existe apenas para
-evitar listagens redundantes do blob, não por correção.
+Não existe mais lock de poll: listar o blob é só leitura, e o registro faz parte da reserva.
 
-Como cada lock é adquirido pela API programática do ShedLock (`LockingTaskExecutor`), a validade é
-a mesma do lock de ciclo anterior (`lock-at-most-for`), renovada pelo keep-alive enquanto o
-processamento durar.
-
-A collection e os nomes dos campos continuam configuráveis por `app.shedlock.*`, com o provider
-próprio descrito abaixo.
+Os locks são adquiridos pela API programática do ShedLock (`LockingTaskExecutor`), com validade
+`lock-at-most-for`, renovada pelo keep-alive enquanto o processamento durar. No `GLOBAL_LOCK`, o
+`lock-at-least-for` (padrão 20 s) vira um pedágio a cada ciclo; quem usar esse modo deve reduzi-lo.
 
 ### Concorrência na criação de jobs
 
-Com duas instâncias lançando jobs ao mesmo tempo, duas corridas ficam expostas nas collections do
-Spring Batch:
-
-1. **Criação duplicada de `JobInstance`.** O DAO verifica a existência e insere em seguida — entre
-   as duas operações, outra instância pode inserir a mesma chave. Um **índice único em
-   `(job_name, job_key)`** (criado no `mongo-init`) transforma a corrida em erro de chave duplicada.
-   A aplicação trata esse erro como `CONCURRENT_LAUNCH`: devolve o arquivo para `PENDING`, **desconta
-   a tentativa** — porque nada chegou a ser executado — e deixa o próximo ciclo reprocessar.
+1. **Criação duplicada de `JobInstance`.** O **índice único em `(job_name, job_key)`** (criado no
+   `mongo-init`) transforma a corrida em erro de chave duplicada. Com a reserva ela praticamente não
+   acontece, mas o tratamento continua: `file.concurrent` no log, **nenhuma mudança de status**
+   (outra instância está com o arquivo) e o ciclo segue para o próximo.
 2. **`JobInstance` sem execução.** Se o lançamento falha entre criar a instância e gravar a execução,
-   sobra uma instância órfã, e todas as tentativas seguintes falham com
-   `Cannot find any job execution for job instance`. O `OrphanJobInstanceCleaner` descarta, antes de
-   lançar, apenas instâncias **sem nenhuma execução** — que não carregam estado algum. Instâncias com
-   execuções são preservadas, mantendo intacto o caminho de resume.
+   sobra uma instância órfã. O `OrphanJobInstanceCleaner` descarta, antes de lançar, apenas
+   instâncias **sem nenhuma execução**, preservando o caminho de resume.
 
-Por esse motivo o lançamento do job **não é envolvido em retry**: criar uma `JobInstance` não é
-idempotente, e repetir a operação após uma falha parcial era o que produzia a instância órfã. Um
-erro transitório agora custa um ciclo, e o arquivo volta pela fila normalmente.
+O lançamento do job **não é envolvido em retry**: criar uma `JobInstance` não é idempotente. Uma
+falha de lançamento segue a regra normal de retentativa (`FAILED_PARTITIONING`).
 
 ### Provider customizado
 
@@ -412,7 +428,7 @@ depois que eles terminam (`service_completed_successfully`). Os scripts são ide
 |---|---|
 | `batch_job_instance`, `batch_job_execution`, `batch_step_execution`, `batch_sequences` | JobRepository customizado, mesma estrutura do `poc-spring-batch` (snake_case e TTL de expurgo) |
 | `received_file_management` | Arquivo grande (`role=ORIGINAL`) e suas partições (`role=PARTITION`, `parent_file_id` = id do original) |
-| `scheduler_locks` | Locks do ShedLock (nome e campos configuráveis) |
+| `scheduler_locks` | Locks do ShedLock nos modos `TYPE_LOCK` e `GLOBAL_LOCK` (nome e campos configuráveis) |
 
 ### `received_file_management`
 
@@ -441,16 +457,16 @@ Uma partição tem `role=PARTITION`, `parent_file_id` apontando para o original,
 `partitioning.byte_start` e `partitioning.byte_end` com a faixa copiada do original.
 `audit.published_at` é preenchido após o ack do Kafka.
 
-* **Id do original:** `UUID.nameUUIDFromBytes(caminho + etag)`. Registrar o mesmo blob de novo não faz nada, e um reenvio com o mesmo nome (outro etag) vira um novo arquivo.
+* **Id do original:** `UUID.nameUUIDFromBytes(nome do arquivo)`. É a chave única da reserva: o mesmo nome nunca é processado duas vezes, mesmo que o conteúdo mude. O reprocessamento vem do mainframe com **outro nome** e, por isso, vira um registro novo. Um arquivo com nome já concluído que reapareça em `entrada/` gera `file.duplicate` a cada ciclo até ser removido.
+* **Não há índice em `file_name`:** a unicidade vem do índice implícito do `_id`, que já é derivado do nome.
 * **Id da partição:** `<id do original>-p0001`.
 
 ## Pastas no blob
 
 ```
-entrada/<arquivo>.txt                                   recebido, aguardando particionamento
+entrada/<arquivo>.txt                                   recebido, em processamento ou com falha
 processados/<data>/<fileId>/<arquivo>.txt               original já particionado
 aberto|fechado|saldo|ultima/<data>/<fileId>/<arquivo>_part_0001.txt
-erros/<fileId>/<arquivo>.txt                            inválido ou sem mais tentativas
 ```
 
 O `fileId` no caminho das partições permite apagar todas as partições de um arquivo só
@@ -470,9 +486,10 @@ particionado, o que distribui as mensagens entre as partições e permite consum
 ```
 br.com.spring.batch.partitioner
 ├── controller    REST: gerador, consulta/verificação de arquivos, locks, chaos
-├── service       polling, ciclo de particionamento, launcher/runner do job, rejeição, status, verificação
+├── service       polling, reserva do arquivo, ciclo, launcher/runner do job, status, verificação
+│   ├── dispatch    despacho por tipo e guardas de concorrência (CLAIM, TYPE_LOCK, GLOBAL_LOCK)
 │   └── generation  worker de geração de massa (profile generator)
-├── scheduler     FileProcessingScheduler (@Scheduled + @SchedulerLock) e o LockedCycleRunner (request_id, log e auditoria do lock)
+├── scheduler     FileProcessingScheduler (@Scheduled) e o CycleRunner (request_id e log do ciclo)
 ├── batch
 │   ├── job         definição do job, nomes dos steps e JobParameters
 │   ├── step        FileStep / FileStepSupport (carrega o arquivo e aplica o chaos)
@@ -480,6 +497,7 @@ br.com.spring.batch.partitioner
 │   ├── partition   inspeção, plano, escrita, limpeza, arquivamento e publicação das partições
 │   ├── listener    status do arquivo e métricas (STEP_METRICS / JOB_METRICS)
 │   ├── metrics     StepVolume e Throughput
+│   ├── heartbeat   renovação do updated_at enquanto o job roda
 │   └── recovery    execuções órfãs
 ├── repository    received_file_management (original e partições) e o JobRepository customizado (batch/)
 ├── model         documento Mongo, layout posicional, plano de partições e evento Kafka
