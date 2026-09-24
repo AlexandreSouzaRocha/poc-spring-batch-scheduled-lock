@@ -7,7 +7,6 @@ import java.util.Optional;
 import br.com.spring.batch.partitioner.model.document.ReceivedFileDocument;
 import br.com.spring.batch.partitioner.model.document.ReceivedFileFields;
 
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.mongodb.core.FindAndModifyOptions;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -29,13 +28,8 @@ public class ReceivedFileCollection {
         this.mongoTemplate = mongoTemplate;
     }
 
-    public boolean insertIfAbsent(ReceivedFileDocument document) {
-        try {
-            mongoTemplate.insert(document, NAME);
-            return true;
-        } catch (DuplicateKeyException e) {
-            return false;
-        }
+    public void insert(ReceivedFileDocument document) {
+        mongoTemplate.insert(document, NAME);
     }
 
     public void insertAll(List<ReceivedFileDocument> documents) {
@@ -63,8 +57,17 @@ public class ReceivedFileCollection {
                 ReceivedFileDocument.class, NAME);
     }
 
+    public Optional<ReceivedFileDocument> updateAndGet(Criteria criteria, Update update) {
+        return Optional.ofNullable(mongoTemplate.findAndModify(query(criteria), touched(update),
+                FindAndModifyOptions.options().returnNew(true), ReceivedFileDocument.class, NAME));
+    }
+
     public void update(String id, Update update) {
         mongoTemplate.updateFirst(byId(id), touched(update), NAME);
+    }
+
+    public boolean updateFirst(Criteria criteria, Update update) {
+        return mongoTemplate.updateFirst(query(criteria), touched(update), NAME).getModifiedCount() > 0;
     }
 
     public void updateAll(Criteria criteria, Update update) {

@@ -6,8 +6,6 @@ import java.util.Optional;
 
 import br.com.spring.batch.partitioner.model.document.ReceivedFileDocument;
 import br.com.spring.batch.partitioner.model.enums.FileStatus;
-import br.com.spring.batch.partitioner.model.queue.MovementDependencies;
-import br.com.spring.batch.partitioner.model.queue.ProcessingQueue;
 import br.com.spring.batch.partitioner.repository.OriginalFileRepository;
 import br.com.spring.batch.partitioner.repository.PartitionFileRepository;
 import br.com.spring.batch.partitioner.service.FileStatusService;
@@ -32,28 +30,19 @@ public class ReceivedFileController {
     private final PartitionFileRepository partitions;
     private final FileVerificationService verificationService;
     private final FileStatusService statusService;
-    private final MovementDependencies dependencies;
 
     public ReceivedFileController(OriginalFileRepository originals, PartitionFileRepository partitions,
-                                  FileVerificationService verificationService, FileStatusService statusService,
-                                  MovementDependencies dependencies) {
+                                  FileVerificationService verificationService, FileStatusService statusService) {
         this.originals = originals;
         this.partitions = partitions;
         this.verificationService = verificationService;
         this.statusService = statusService;
-        this.dependencies = dependencies;
     }
 
     @GetMapping
     public List<ReceivedFileDocument> list(@RequestParam Optional<FileStatus> status,
                                            @RequestParam(defaultValue = "50") int limit) {
         return originals.findRecent(status, Math.min(limit, MAX_LIMIT));
-    }
-
-    @GetMapping("/queue")
-    public ProcessingQueue queue(@RequestParam(defaultValue = "20") int limit) {
-        return ProcessingQueue.of(originals.findProcessable(), originals.findRejected(), dependencies,
-                Math.min(limit, MAX_LIMIT));
     }
 
     @PostMapping("/{id}/requeue")

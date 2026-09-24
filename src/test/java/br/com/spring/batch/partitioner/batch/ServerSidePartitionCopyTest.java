@@ -13,7 +13,7 @@ import br.com.spring.batch.partitioner.batch.progress.ProgressCounter;
 import br.com.spring.batch.partitioner.config.properties.AppProperties;
 import br.com.spring.batch.partitioner.config.properties.AppProperties.PartitionSettings;
 import br.com.spring.batch.partitioner.model.partition.ByteRange;
-import br.com.spring.batch.partitioner.service.dispatch.DispatchMode;
+import br.com.spring.batch.partitioner.service.dispatch.ConcurrencyControl;
 import br.com.spring.batch.partitioner.storage.BlobUpload;
 import br.com.spring.batch.partitioner.storage.BlobUrls;
 import br.com.spring.batch.partitioner.storage.BlobWriter;
@@ -62,7 +62,8 @@ class ServerSidePartitionCopyTest {
     }
 
     private static ProgressCounter counter(long totalBytes) {
-        PartitionSettings settings = new PartitionSettings(10, 3, 1, 20, DispatchMode.CONCURRENT, 4, 0, true, 64);
+        PartitionSettings settings = new PartitionSettings(10, 3, 1, ConcurrencyControl.CLAIM,
+                Duration.ofSeconds(10), Duration.ofMinutes(2), 4, 0, true, 64);
         return new PartitionProgressReporter(new AppProperties(null, null, settings, null, null))
                 .track("file", 1, 1, totalBytes);
     }

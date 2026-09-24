@@ -9,8 +9,8 @@ public record ExecutionInfo(
         @Field(ReceivedFileFields.LAST_ERROR) String lastError,
         @Field(ReceivedFileFields.DURATION_MS) Long durationMs) {
 
-    public static ExecutionInfo notStarted() {
-        return new ExecutionInfo(null, null, 0, null, null);
+    public static ExecutionInfo firstAttempt() {
+        return new ExecutionInfo(null, null, 1, null, null);
     }
 
     public static ExecutionInfo inheritedFrom(ExecutionInfo originalExecution) {

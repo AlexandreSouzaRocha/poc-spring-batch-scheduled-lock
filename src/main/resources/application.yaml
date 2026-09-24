@@ -49,19 +49,17 @@ app:
   folders:
     inbox: ${APP_FOLDER_INBOX:entrada}
     processed: ${APP_FOLDER_PROCESSED:processados}
-    error: ${APP_FOLDER_ERROR:erros}
 
   file:
     line-separator: ${APP_FILE_LINE_SEPARATOR:LF}
-    dependencies:
-      ULTIMA: ${APP_FILE_DEPENDENCIES_ULTIMA:ABERTO}
 
   partition:
     count: ${APP_PARTITION_COUNT:10}
     max-attempts: ${APP_PARTITION_MAX_ATTEMPTS:3}
     max-concurrent-types: ${APP_PARTITION_MAX_CONCURRENT_TYPES:1}
-    dispatch: ${APP_PARTITION_DISPATCH:CONCURRENT}
-    files-per-cycle: ${APP_PARTITION_FILES_PER_CYCLE:20}
+    concurrency-control: ${APP_PARTITION_CONCURRENCY_CONTROL:CLAIM}
+    heartbeat-interval: ${APP_PARTITION_HEARTBEAT_INTERVAL:10s}
+    stale-after: ${APP_PARTITION_STALE_AFTER:2m}
     threads-per-partition: ${APP_PARTITION_THREADS_PER_PARTITION:4}
     progress-interval-seconds: ${APP_PARTITION_PROGRESS_INTERVAL_SECONDS:10}
     server-side-copy: ${APP_PARTITION_SERVER_SIDE_COPY:false}

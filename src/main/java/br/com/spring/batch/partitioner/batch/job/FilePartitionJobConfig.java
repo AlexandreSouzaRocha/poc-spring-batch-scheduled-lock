@@ -80,28 +80,28 @@ public class FilePartitionJobConfig {
     }
 
     @Bean
-    public Step moveOriginalStep(MoveOriginalTasklet tasklet) {
-        return stepFactory.tasklet(BatchNames.MOVE_ORIGINAL_STEP, tasklet, false);
-    }
-
-    @Bean
     public Step publishPartitionsStep(PublishPartitionsTasklet tasklet) {
         return stepFactory.tasklet(BatchNames.PUBLISH_PARTITIONS_STEP, tasklet, false);
     }
 
     @Bean
+    public Step moveOriginalStep(MoveOriginalTasklet tasklet) {
+        return stepFactory.tasklet(BatchNames.MOVE_ORIGINAL_STEP, tasklet, false);
+    }
+
+    @Bean
     public Job filePartitionJob(Step validateHeaderStep, Step cleanupPartitionsStep, Step partitionMasterStep,
-                                Step registerPartitionsStep, Step moveOriginalStep, Step publishPartitionsStep,
+                                Step registerPartitionsStep, Step publishPartitionsStep, Step moveOriginalStep,
                                 FileStatusJobListener fileStatusJobListener, JobMetricsListener jobMetricsListener) {
         return new JobBuilder(BatchNames.JOB_NAME, jobRepository)
                 .start(validateHeaderStep)
                 .next(cleanupPartitionsStep)
                 .next(partitionMasterStep)
                 .next(registerPartitionsStep)
-                .next(moveOriginalStep)
                 .next(publishPartitionsStep)
-                .listener(fileStatusJobListener)
+                .next(moveOriginalStep)
                 .listener(jobMetricsListener)
+                .listener(fileStatusJobListener)
                 .build();
     }
 

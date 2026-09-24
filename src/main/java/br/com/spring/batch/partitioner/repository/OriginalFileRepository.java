@@ -28,19 +28,14 @@ import static org.springframework.data.mongodb.core.query.Query.query;
 @Repository
 public class OriginalFileRepository {
 
-    private static final int QUEUE_SCAN_LIMIT = 1000;
-
-    private static final List<FileStatus> PROCESSABLE = List.of(FileStatus.PENDING, FileStatus.PARTITIONING,
-            FileStatus.FAILED);
-
     private final ReceivedFileCollection collection;
 
     public OriginalFileRepository(ReceivedFileCollection collection) {
         this.collection = collection;
     }
 
-    public boolean register(ReceivedFileDocument original) {
-        return collection.insertIfAbsent(original);
+    public void register(ReceivedFileDocument original) {
+        collection.insert(original);
     }
 
     public Optional<ReceivedFileDocument> findById(String id) {
@@ -51,18 +46,9 @@ public class OriginalFileRepository {
         return findById(id).orElseThrow(() -> new IllegalStateException("arquivo " + id + " não encontrado"));
     }
 
-    public List<ReceivedFileDocument> findProcessable() {
-        return findByStatuses(PROCESSABLE);
-    }
-
-    public List<ReceivedFileDocument> findRejected() {
-        return findByStatuses(List.of(FileStatus.ERROR));
-    }
-
-    private List<ReceivedFileDocument> findByStatuses(List<FileStatus> statuses) {
-        return collection.find(query(originals().and(ReceivedFileFields.STATUS).in(statuses))
-                .with(Sort.by(Sort.Direction.ASC, audit(ReceivedFileFields.CREATED_AT)))
-                .limit(QUEUE_SCAN_LIMIT));
+    public List<ReceivedFileDocument> findUnfinished() {
+        return collection.find(query(originals().and(ReceivedFileFields.STATUS).in(FileStatus.UNFINISHED))
+                .with(Sort.by(Sort.Direction.ASC, audit(ReceivedFileFields.CREATED_AT))));
     }
 
     public List<ReceivedFileDocument> findRecent(Optional<FileStatus> status, int limit) {
@@ -81,20 +67,30 @@ public class OriginalFileRepository {
         return counts;
     }
 
-    public ReceivedFileDocument startAttempt(String id) {
-        return collection.updateAndGet(id, new Update()
-                .set(ReceivedFileFields.STATUS, FileStatus.PARTITIONING)
-                .inc(execution(ReceivedFileFields.ATTEMPTS), 1));
+    public Optional<ReceivedFileDocument> claimForReprocessing(String id, Instant staleBefore, int maxAttempts) {
+        Criteria criteria = byId(id).and(execution(ReceivedFileFields.ATTEMPTS)).lt(maxAttempts)
+                .orOperator(where(ReceivedFileFields.STATUS).is(FileStatus.FAILED_PARTITIONING), stale(staleBefore));
+        return collection.updateAndGet(criteria, new Update()
+                .set(ReceivedFileFields.STATUS, FileStatus.REPROCESSING)
+                .inc(execution(ReceivedFileFields.ATTEMPTS), 1)
+                .unset(execution(ReceivedFileFields.LAST_JOB_EXECUTION_ID)));
     }
 
-    public void releaseAttempt(String id) {
-        collection.update(id, new Update()
-                .set(ReceivedFileFields.STATUS, FileStatus.PENDING)
-                .inc(execution(ReceivedFileFields.ATTEMPTS), -1));
+    public boolean failAbandoned(String id, Instant staleBefore, int maxAttempts, String error) {
+        Criteria criteria = byId(id).and(execution(ReceivedFileFields.ATTEMPTS)).gte(maxAttempts)
+                .andOperator(stale(staleBefore));
+        return collection.updateFirst(criteria, new Update()
+                .set(ReceivedFileFields.STATUS, FileStatus.FAILED)
+                .set(execution(ReceivedFileFields.LAST_ERROR), error)
+                .unset(execution(ReceivedFileFields.LAST_JOB_EXECUTION_ID)));
     }
 
-    public void recordJobExecution(String id, long jobInstanceId, long jobExecutionId) {
-        collection.update(id, new Update()
+    public boolean heartbeat(String id, long jobExecutionId) {
+        return collection.updateFirst(ownedBy(id, jobExecutionId), new Update());
+    }
+
+    public boolean recordJobExecution(String id, long jobInstanceId, long jobExecutionId) {
+        return collection.updateFirst(ownedBy(id, null), new Update()
                 .set(execution(ReceivedFileFields.JOB_INSTANCE_ID), jobInstanceId)
                 .set(execution(ReceivedFileFields.LAST_JOB_EXECUTION_ID), jobExecutionId));
     }
@@ -109,31 +105,47 @@ public class OriginalFileRepository {
         collection.update(id, new Update().set(blob(ReceivedFileFields.CURRENT_PATH), currentPath));
     }
 
-    public void complete(String id, long durationMs) {
-        collection.update(id, new Update()
+    public boolean complete(String id, Long owner, long durationMs) {
+        return collection.updateFirst(ownedBy(id, owner), new Update()
                 .set(ReceivedFileFields.STATUS, FileStatus.COMPLETED)
                 .set(execution(ReceivedFileFields.DURATION_MS), durationMs)
                 .unset(execution(ReceivedFileFields.LAST_ERROR))
                 .set(audit(ReceivedFileFields.COMPLETED_AT), Instant.now()));
     }
 
-    public void fail(String id, String error) {
-        collection.update(id, new Update()
-                .set(ReceivedFileFields.STATUS, FileStatus.FAILED)
-                .set(execution(ReceivedFileFields.LAST_ERROR), error));
+    public boolean failPartitioning(String id, Long owner, String error) {
+        return markFailure(id, owner, FileStatus.FAILED_PARTITIONING, error);
     }
 
-    public void reject(String id, String error) {
-        collection.update(id, new Update()
-                .set(ReceivedFileFields.STATUS, FileStatus.ERROR)
-                .set(execution(ReceivedFileFields.LAST_ERROR), error));
+    public boolean fail(String id, Long owner, String error) {
+        return markFailure(id, owner, FileStatus.FAILED, error);
     }
 
     public void requeue(String id) {
         collection.update(id, new Update()
-                .set(ReceivedFileFields.STATUS, FileStatus.PENDING)
+                .set(ReceivedFileFields.STATUS, FileStatus.FAILED_PARTITIONING)
                 .set(execution(ReceivedFileFields.ATTEMPTS), 0)
                 .unset(execution(ReceivedFileFields.LAST_ERROR)));
+    }
+
+    private boolean markFailure(String id, Long owner, FileStatus status, String error) {
+        return collection.updateFirst(ownedBy(id, owner), new Update()
+                .set(ReceivedFileFields.STATUS, status)
+                .set(execution(ReceivedFileFields.LAST_ERROR), error));
+    }
+
+    private static Criteria ownedBy(String id, Long jobExecutionId) {
+        return byId(id).and(ReceivedFileFields.STATUS).in(FileStatus.IN_PROGRESS)
+                .and(execution(ReceivedFileFields.LAST_JOB_EXECUTION_ID)).is(jobExecutionId);
+    }
+
+    private static Criteria stale(Instant staleBefore) {
+        return where(ReceivedFileFields.STATUS).in(FileStatus.IN_PROGRESS)
+                .and(audit(ReceivedFileFields.UPDATED_AT)).lt(staleBefore);
+    }
+
+    private static Criteria byId(String id) {
+        return where(ReceivedFileFields.ID).is(id);
     }
 
     private static Criteria originals() {

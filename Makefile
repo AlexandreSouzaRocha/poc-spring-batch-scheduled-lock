@@ -126,10 +126,13 @@ chaos: ## Injeta falha nos 2 particionadores. POINT=VALIDATE|CLEANUP|PARTITION|M
 chaos-off: ## Remove a injeção de falha dos 2 particionadores
 	@for url in $(P1_URL) $(P2_URL); do curl -fsS -X DELETE "$$url/chaos" || true; done; echo "chaos desativado"
 
-kill-owner: ## docker kill na instância dona do lock file-processing (simula crash)
-	@owner=$$(curl -fsS "$(P1_URL)/locks" 2>/dev/null || curl -fsS "$(P2_URL)/locks") ; \
-	owner=$$(echo "$$owner" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next((l.get("locked_by") for l in d["locks"] if l.get("_id")=="file-processing"), ""))'); \
-	echo "dono do lock file-processing: $$owner"; docker kill psl-$$owner
+kill-owner: ## docker kill na instância que iniciou o particionamento mais recente (simula crash)
+	@owner=$$(for c in $(PARTITIONERS); do \
+		ts=$$(docker logs --since 30m psl-$$c 2>&1 | grep "operation=file.process" | tail -1 | awk '{print $$1}'); \
+		[ -n "$$ts" ] && echo "$$ts $$c"; \
+	done | sort | tail -1 | awk '{print $$2}'); \
+	[ -n "$$owner" ] || { echo "nenhum particionamento recente encontrado"; exit 1; }; \
+	echo "instância processando: $$owner"; docker kill psl-$$owner
 
 start-all: ## Sobe de novo containers parados/mortos
 	docker compose up -d --wait $(APPS)
@@ -137,7 +140,7 @@ start-all: ## Sobe de novo containers parados/mortos
 e2e: ## Teste integrado: gera, aguarda e valida partições, blob, Kafka, lock e métricas. LINES FILES TYPE
 	./scripts/e2e.sh $(LINES) $(FILES) $(TYPE)
 
-chaos-test: ## Cenários de resume/recovery: SCENARIO=partition-fail|publish-fail|invalid-file|slow-io|kill-owner|all
+chaos-test: ## Cenários de resume/recovery: SCENARIO=partition-fail|publish-fail|invalid-file|slow-io|kill-owner|zombie-owner|all
 	./scripts/chaos-test.sh $(SCENARIO)
 
 ## ---------- Testes de carga ----------

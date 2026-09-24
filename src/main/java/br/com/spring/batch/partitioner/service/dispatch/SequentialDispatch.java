@@ -2,12 +2,10 @@ package br.com.spring.batch.partitioner.service.dispatch;
 
 import br.com.spring.batch.partitioner.config.properties.SchedulerProperties;
 import br.com.spring.batch.partitioner.lock.ProcessingLock;
-import br.com.spring.batch.partitioner.model.document.ReceivedFileDocument;
-import br.com.spring.batch.partitioner.model.queue.ProcessingQueue;
 import br.com.spring.batch.partitioner.service.FilePartitionLauncher;
-import br.com.spring.batch.partitioner.support.log.RequestContext;
+import br.com.spring.batch.partitioner.service.InboxFiles;
 
-public class SequentialDispatch implements QueueDispatch {
+public class SequentialDispatch implements InboxDispatch {
 
     private final FilePartitionLauncher launcher;
     private final ProcessingLock processingLock;
@@ -21,11 +19,7 @@ public class SequentialDispatch implements QueueDispatch {
     }
 
     @Override
-    public void dispatch(ProcessingQueue queue) {
-        processingLock.tryRun(scheduler.lockName(), () -> queue.files().forEach(this::launch));
-    }
-
-    private void launch(ReceivedFileDocument file) {
-        RequestContext.run(RequestContext.childRequestId(file.id()), () -> launcher.launch(file));
+    public void dispatch(InboxFiles inbox) {
+        processingLock.tryRun(scheduler.lockName(), () -> inbox.files().forEach(launcher::launch));
     }
 }

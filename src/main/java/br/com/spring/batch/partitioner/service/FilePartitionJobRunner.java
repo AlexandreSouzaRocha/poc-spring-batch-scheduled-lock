@@ -1,16 +1,15 @@
 package br.com.spring.batch.partitioner.service;
 
+import br.com.spring.batch.partitioner.batch.heartbeat.FileHeartbeat;
 import br.com.spring.batch.partitioner.batch.job.FileJobParameters;
 import br.com.spring.batch.partitioner.batch.recovery.AbandonedExecutionRecovery;
 import br.com.spring.batch.partitioner.batch.recovery.OrphanJobInstanceCleaner;
 import br.com.spring.batch.partitioner.model.document.ReceivedFileDocument;
-import br.com.spring.batch.partitioner.repository.OriginalFileRepository;
 import br.com.spring.batch.partitioner.support.DuplicateKeyDetector;
 import br.com.spring.batch.partitioner.support.log.ErrorSummary;
 import br.com.spring.batch.partitioner.support.log.StructuredLogger;
 
 import org.springframework.batch.core.job.Job;
-import org.springframework.batch.core.job.JobExecution;
 import org.springframework.batch.core.launch.JobInstanceAlreadyCompleteException;
 import org.springframework.batch.core.launch.JobOperator;
 import org.springframework.stereotype.Service;
@@ -22,57 +21,58 @@ public class FilePartitionJobRunner {
 
     private final JobLauncherGateway gateway;
     private final AbandonedExecutionRecovery recovery;
-    private final OriginalFileRepository repository;
     private final OrphanJobInstanceCleaner orphanCleaner;
+    private final FileStatusService statusService;
+    private final FileHeartbeat heartbeat;
 
     public FilePartitionJobRunner(JobOperator jobOperator, Job filePartitionJob, AbandonedExecutionRecovery recovery,
-                                  OriginalFileRepository repository, OrphanJobInstanceCleaner orphanCleaner) {
+                                  OrphanJobInstanceCleaner orphanCleaner,
+                                  FileStatusService statusService, FileHeartbeat heartbeat) {
         this.gateway = new JobLauncherGateway(jobOperator, filePartitionJob);
         this.recovery = recovery;
-        this.repository = repository;
         this.orphanCleaner = orphanCleaner;
+        this.statusService = statusService;
+        this.heartbeat = heartbeat;
     }
 
-    public JobOutcome run(ReceivedFileDocument file) {
+    public void run(ReceivedFileDocument file) {
         try {
-            return start(file);
+            start(file);
         } catch (JobInstanceAlreadyCompleteException e) {
             log.warn("file.process").field("fileId", file.id()).field("action", "sync-status")
                     .log("job já estava COMPLETED; status do arquivo sincronizado");
-            repository.complete(file.id(), 0);
-            return JobOutcome.COMPLETED;
+            statusService.completed(file.id(), file.owner(), 0);
         } catch (Exception e) {
-            return failure(file, e);
+            failure(file, e);
+        } finally {
+            heartbeat.stop(file.id());
         }
     }
 
-    private JobOutcome failure(ReceivedFileDocument file, Exception error) {
+    private void failure(ReceivedFileDocument file, Exception error) {
         if (DuplicateKeyDetector.isDuplicateKey(error)) {
-            repository.releaseAttempt(file.id());
-            log.warn("file.concurrent").field("fileId", file.id()).error(error)
-                    .log("outra instância já iniciou este arquivo; tentativa devolvida para o próximo ciclo");
-            return JobOutcome.CONCURRENT_LAUNCH;
+            log.warn("file.concurrent").field("fileId", file.id()).field("fileName", file.fileName()).error(error)
+                    .log("outra instância já iniciou o job deste arquivo; seguindo para o próximo");
+            return;
         }
-        repository.fail(file.id(), ErrorSummary.oneLine(error));
         log.error("file.process").field("fileId", file.id()).error(error).log("falha ao executar o job");
-        return JobOutcome.LAUNCH_ERROR;
+        statusService.failed(file.id(), file.owner(), ErrorSummary.oneLine(error), true);
     }
 
-    private JobOutcome start(ReceivedFileDocument file) throws Exception {
+    private void start(ReceivedFileDocument file) throws Exception {
         boolean restart = recovery.prepareRestart(file.id());
-        ReceivedFileDocument attempt = repository.startAttempt(file.id());
         log.info("file.process").field("fileId", file.id()).field("fileName", file.fileName())
-                .field("attempt", attempt.attempts()).field("restart", restart)
-                .data("previousStatus", file.status()).data("sizeBytes", file.sizeBytes())
-                .log(restart ? "reiniciando particionamento (resume)" : "iniciando particionamento");
+                .field("attempt", file.attempts()).field("restart", restart)
+                .data("status", file.status()).data("sizeBytes", file.sizeBytes())
+                .log(restart ? "retomando particionamento de onde parou" : "iniciando particionamento");
         orphanCleaner.removeOrphanOf(file.id());
-        return JobOutcome.of(gateway.start(file.id()));
+        gateway.start(file.id());
     }
 
     private record JobLauncherGateway(JobOperator jobOperator, Job job) {
 
-        JobExecution start(String fileId) throws Exception {
-            return jobOperator.start(job, FileJobParameters.forFile(fileId));
+        void start(String fileId) throws Exception {
+            jobOperator.start(job, FileJobParameters.forFile(fileId));
         }
     }
 }

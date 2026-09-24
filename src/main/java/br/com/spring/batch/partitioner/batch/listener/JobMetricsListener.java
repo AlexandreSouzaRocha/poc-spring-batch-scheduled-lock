@@ -34,7 +34,7 @@ public class JobMetricsListener implements JobExecutionListener {
     @Override
     public void afterJob(JobExecution jobExecution) {
         String fileId = FileJobParameters.fileIdOf(jobExecution);
-        Optional<ReceivedFileDocument> original = repository.findById(fileId).filter(ReceivedFileDocument::hasMovement);
+        Optional<ReceivedFileDocument> original = repository.findById(fileId).filter(ReceivedFileDocument::isInspected);
         StepVolume volume = original.map(file -> new StepVolume(file.lineCount(), file.sizeBytes()))
                 .orElse(StepVolume.empty());
         Throughput throughput = Throughput.between(jobExecution.getStartTime(), jobExecution.getEndTime(), volume);

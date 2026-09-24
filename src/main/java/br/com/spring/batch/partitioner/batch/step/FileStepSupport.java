@@ -20,8 +20,14 @@ public class FileStepSupport {
     }
 
     public ReceivedFileDocument load(FileStep step, ChaosPoint point) {
-        ReceivedFileDocument original = repository.getById(step.fileId());
+        ReceivedFileDocument original = load(step);
         failureInjector.check(ChaosTarget.file(point, original.id(), original.attempts()));
+        return original;
+    }
+
+    public ReceivedFileDocument load(FileStep step) {
+        ReceivedFileDocument original = repository.getById(step.fileId());
+        requireOwnership(original, step.jobExecutionId());
         return original;
     }
 
@@ -31,5 +37,12 @@ public class FileStepSupport {
 
     public void checkPartition(ReceivedFileDocument original, int partitionIndex) {
         failureInjector.check(ChaosTarget.partition(original.id(), original.attempts(), partitionIndex));
+    }
+
+    private static void requireOwnership(ReceivedFileDocument original, long jobExecutionId) {
+        if (original.isOwnedBy(jobExecutionId)) {
+            return;
+        }
+        throw new FileOwnershipLostException(original.id(), jobExecutionId, original.owner());
     }
 }

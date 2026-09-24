@@ -5,15 +5,15 @@ import br.com.spring.batch.partitioner.config.properties.AppProperties.BlobSetti
 import br.com.spring.batch.partitioner.config.properties.AppProperties.FolderSettings;
 import br.com.spring.batch.partitioner.config.properties.AppProperties.KafkaSettings;
 import br.com.spring.batch.partitioner.config.properties.AppProperties.PartitionSettings;
-
 import br.com.spring.batch.partitioner.config.properties.SchedulerProperties;
 import br.com.spring.batch.partitioner.lock.ProcessingLock;
 import br.com.spring.batch.partitioner.model.layout.FileLayout;
-import br.com.spring.batch.partitioner.model.queue.MovementDependencies;
 import br.com.spring.batch.partitioner.service.FilePartitionLauncher;
+import br.com.spring.batch.partitioner.service.dispatch.ClaimGuard;
 import br.com.spring.batch.partitioner.service.dispatch.ConcurrentDispatch;
-import br.com.spring.batch.partitioner.service.dispatch.QueueDispatch;
+import br.com.spring.batch.partitioner.service.dispatch.InboxDispatch;
 import br.com.spring.batch.partitioner.service.dispatch.SequentialDispatch;
+import br.com.spring.batch.partitioner.service.dispatch.TypeLockGuard;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
@@ -49,21 +49,23 @@ public class SettingsConfig {
     }
 
     @Bean
-    public MovementDependencies movementDependencies(AppProperties properties) {
-        return properties.file().movementDependencies();
-    }
-
-    @Bean
-    @ConditionalOnProperty(prefix = "app.partition", name = "dispatch", havingValue = "CONCURRENT",
+    @ConditionalOnProperty(prefix = "app.partition", name = "concurrency-control", havingValue = "CLAIM",
             matchIfMissing = true)
-    public QueueDispatch concurrentDispatch(FilePartitionLauncher launcher, ProcessingLock processingLock,
-            SchedulerProperties scheduler, AppProperties properties) {
-        return new ConcurrentDispatch(launcher, processingLock, scheduler, properties.partition());
+    public InboxDispatch claimDispatch(FilePartitionLauncher launcher, PartitionSettings settings) {
+        return new ConcurrentDispatch(launcher, new ClaimGuard(), settings.maxConcurrentTypes());
     }
 
     @Bean
-    @ConditionalOnProperty(prefix = "app.partition", name = "dispatch", havingValue = "SEQUENTIAL")
-    public QueueDispatch sequentialDispatch(FilePartitionLauncher launcher, ProcessingLock processingLock,
+    @ConditionalOnProperty(prefix = "app.partition", name = "concurrency-control", havingValue = "TYPE_LOCK")
+    public InboxDispatch typeLockDispatch(FilePartitionLauncher launcher, ProcessingLock processingLock,
+            SchedulerProperties scheduler, PartitionSettings settings) {
+        return new ConcurrentDispatch(launcher, new TypeLockGuard(processingLock, scheduler),
+                settings.maxConcurrentTypes());
+    }
+
+    @Bean
+    @ConditionalOnProperty(prefix = "app.partition", name = "concurrency-control", havingValue = "GLOBAL_LOCK")
+    public InboxDispatch globalLockDispatch(FilePartitionLauncher launcher, ProcessingLock processingLock,
             SchedulerProperties scheduler) {
         return new SequentialDispatch(launcher, processingLock, scheduler);
     }

@@ -1,9 +1,11 @@
 package br.com.spring.batch.partitioner.batch.listener;
 
+import br.com.spring.batch.partitioner.batch.heartbeat.FileHeartbeat;
 import br.com.spring.batch.partitioner.batch.job.FileJobParameters;
 import br.com.spring.batch.partitioner.batch.metrics.StepVolume;
 import br.com.spring.batch.partitioner.batch.metrics.Throughput;
 import br.com.spring.batch.partitioner.batch.progress.PartitionProgressReporter;
+import br.com.spring.batch.partitioner.model.layout.InvalidFileException;
 import br.com.spring.batch.partitioner.service.FileStatusService;
 import br.com.spring.batch.partitioner.support.log.ErrorSummary;
 
@@ -17,27 +19,32 @@ public class FileStatusJobListener implements JobExecutionListener {
 
     private final FileStatusService statusService;
     private final PartitionProgressReporter progressReporter;
+    private final FileHeartbeat heartbeat;
 
-    public FileStatusJobListener(FileStatusService statusService, PartitionProgressReporter progressReporter) {
+    public FileStatusJobListener(FileStatusService statusService, PartitionProgressReporter progressReporter,
+                                 FileHeartbeat heartbeat) {
         this.statusService = statusService;
         this.progressReporter = progressReporter;
+        this.heartbeat = heartbeat;
     }
 
     @Override
     public void beforeJob(JobExecution jobExecution) {
-        statusService.started(FileJobParameters.fileIdOf(jobExecution), jobExecution.getJobInstanceId(),
-                jobExecution.getId());
+        String fileId = FileJobParameters.fileIdOf(jobExecution);
+        statusService.started(fileId, jobExecution.getJobInstanceId(), jobExecution.getId());
+        heartbeat.start(fileId, jobExecution.getId());
     }
 
     @Override
     public void afterJob(JobExecution jobExecution) {
         String fileId = FileJobParameters.fileIdOf(jobExecution);
+        heartbeat.stop(fileId);
         progressReporter.finish(fileId, jobExecution.getId());
         if (jobExecution.getStatus() == BatchStatus.COMPLETED) {
-            statusService.completed(fileId, durationMs(jobExecution));
+            statusService.completed(fileId, jobExecution.getId(), durationMs(jobExecution));
             return;
         }
-        statusService.failed(fileId, failureOf(jobExecution));
+        statusService.failed(fileId, jobExecution.getId(), failureOf(jobExecution), isRetryable(jobExecution));
     }
 
     private static long durationMs(JobExecution jobExecution) {
@@ -50,5 +57,10 @@ public class FileStatusJobListener implements JobExecutionListener {
                 .findFirst()
                 .map(ErrorSummary::oneLine)
                 .orElse("job terminou com status " + jobExecution.getStatus());
+    }
+
+    private static boolean isRetryable(JobExecution jobExecution) {
+        return jobExecution.getAllFailureExceptions().stream()
+                .noneMatch(error -> ErrorSummary.rootCause(error) instanceof InvalidFileException);
     }
 }

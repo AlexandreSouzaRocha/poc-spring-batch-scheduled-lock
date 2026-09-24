@@ -48,7 +48,7 @@ finish() {
 }
 
 partitioner_url() {
-  if curl -fsS "$P1_URL/actuator/health" >/dev/null 2>&1; then
+  if curl -fsS --max-time 3 "$P1_URL/actuator/health" >/dev/null 2>&1; then
     echo "$P1_URL"
     return
   fi
@@ -65,7 +65,7 @@ wait_healthy() {
 
 wait_idle() {
   until curl -fsS "$(partitioner_url)/files/summary" \
-      | python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(0 if not any(k in d for k in ("PENDING","PARTITIONING","FAILED")) else 1)'; do
+      | python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(0 if not any(k in d for k in ("PARTITIONING","REPROCESSING","FAILED_PARTITIONING")) else 1)'; do
     sleep 3
   done
 }
@@ -184,15 +184,6 @@ blob_usage() {
       --blob-endpoint http://azurite:10000/devstoreaccount1 --container-name movimentos \
       --query "[].{name:name, bytes:properties.contentLength}" -o json 2>/dev/null \
     | python3 "$(dirname "${BASH_SOURCE[0]}")/blob-usage.py"
-}
-
-clear_rejected_files() {
-  docker exec psl-mongo mongosh partitioner_batch --quiet --eval '
-    const rejected = db.received_file_management.find({ role: "ORIGINAL", status: "ERROR" }, { _id: 1 }).toArray();
-    const ids = rejected.map(file => file._id);
-    db.received_file_management.deleteMany({ $or: [{ _id: { $in: ids } }, { parent_file_id: { $in: ids } }] });
-    print(ids.length);
-  ' 2>/dev/null | tr -d "\r\n"
 }
 
 wait_registered() {

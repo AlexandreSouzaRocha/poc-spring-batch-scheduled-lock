@@ -37,7 +37,7 @@ public class PartitionWriterTasklet implements Tasklet {
     public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) {
         FileStep step = new FileStep(contribution);
         PartitionRange range = PartitionRange.from(step.executionContext());
-        ReceivedFileDocument original = support.load(step.fileId());
+        ReceivedFileDocument original = support.load(step);
         ProgressCounter progress = progressReporter.track(original.id(), step.jobExecutionId(), range.index(),
                 range.bytes().length());
         UploadedPartition uploaded = blobWriter.upload(original, range, progress);

@@ -27,8 +27,8 @@ public record ReceivedFileDocument(
 
     public static ReceivedFileDocument original(String id, String fileName, BlobLocation blob, MovementInfo movement,
             Instant now) {
-        return new ReceivedFileDocument(id, FileRole.ORIGINAL, null, fileName, FileStatus.PENDING, blob, movement,
-                null, ExecutionInfo.notStarted(), AuditInfo.createdAt(now));
+        return new ReceivedFileDocument(id, FileRole.ORIGINAL, null, fileName, FileStatus.PARTITIONING, blob, movement,
+                null, ExecutionInfo.firstAttempt(), AuditInfo.createdAt(now));
     }
 
     public ReceivedFileDocument uploadedPartition(PartitionRange range, String fileName, String path,
@@ -65,6 +65,18 @@ public record ReceivedFileDocument(
 
     public boolean hasMovement() {
         return movement != null;
+    }
+
+    public Long owner() {
+        return execution.lastJobExecutionId();
+    }
+
+    public boolean isOwnedBy(long jobExecutionId) {
+        return status.isInProgress() && Long.valueOf(jobExecutionId).equals(owner());
+    }
+
+    public boolean isInspected() {
+        return partitioning != null;
     }
 
     public byte[] headerLineBytes(FileLayout layout) {

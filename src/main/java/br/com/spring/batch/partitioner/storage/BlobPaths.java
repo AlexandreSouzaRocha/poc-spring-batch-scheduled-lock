@@ -43,10 +43,6 @@ public class BlobPaths {
         return join(folders.processed(), original.movementDate(), original.id(), original.fileName());
     }
 
-    public String errorPath(ReceivedFileDocument original) {
-        return join(folders.error(), original.id(), original.fileName());
-    }
-
     public static String fileNameOf(String path) {
         return path.substring(path.lastIndexOf(SEPARATOR) + 1);
     }

@@ -29,7 +29,7 @@ for NAME in $NAMES; do
   [ -z "$ID" ] && continue
 
   info "aguardando particionamento de $ID"
-  STATUS=$(wait_file_status "$ID" "COMPLETED ERROR" "$TIMEOUT_SECONDS")
+  STATUS=$(wait_file_status "$ID" "COMPLETED FAILED" "$TIMEOUT_SECONDS")
   check "status final COMPLETED (obtido: $STATUS)" "$([ "$STATUS" = "COMPLETED" ] && echo true || echo false)"
 
   PARTITIONS=$(file_field "$ID" "d['file']['partitioning']['count']")

@@ -2,14 +2,9 @@ package br.com.spring.batch.partitioner.config.properties;
 
 import java.time.Duration;
 
-import java.util.List;
-import java.util.Map;
-
-import br.com.spring.batch.partitioner.model.enums.MovementType;
 import br.com.spring.batch.partitioner.model.layout.FileLayout;
-import br.com.spring.batch.partitioner.model.queue.MovementDependencies;
-import br.com.spring.batch.partitioner.service.dispatch.DispatchMode;
 import br.com.spring.batch.partitioner.model.layout.LineSeparator;
+import br.com.spring.batch.partitioner.service.dispatch.ConcurrencyControl;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
@@ -28,15 +23,10 @@ public record AppProperties(
         @Valid @NotNull KafkaSettings kafka,
         @Valid @NotNull FileSettings file) {
 
-    public record FileSettings(@NotNull LineSeparator lineSeparator,
-            Map<MovementType, List<MovementType>> dependencies) {
+    public record FileSettings(@NotNull LineSeparator lineSeparator) {
 
         public FileLayout layout() {
             return new FileLayout(lineSeparator);
-        }
-
-        public MovementDependencies movementDependencies() {
-            return MovementDependencies.of(dependencies == null ? Map.of() : dependencies);
         }
     }
 
@@ -93,25 +83,37 @@ public record AppProperties(
 
     public record FolderSettings(
             @NotBlank String inbox,
-            @NotBlank String processed,
-            @NotBlank String error) {
+            @NotBlank String processed) {
     }
 
     public record PartitionSettings(
             @Min(1) int count,
             @Min(1) int maxAttempts,
             @Min(1) int maxConcurrentTypes,
-            @Min(1) int filesPerCycle,
-            @NotNull DispatchMode dispatch,
+            @NotNull ConcurrencyControl concurrencyControl,
+            @NotNull Duration heartbeatInterval,
+            @NotNull Duration staleAfter,
             @Min(1) int threadsPerPartition,
             @Min(0) int progressIntervalSeconds,
             boolean serverSideCopy,
             @Min(1) int serverSideBlockSizeMb) {
 
+        public PartitionSettings {
+            requireStaleAfterAboveHeartbeat(heartbeatInterval, staleAfter);
+        }
+
         private static final int MEGABYTE = 1024 * 1024;
 
         public int serverSideBlockSizeBytes() {
             return serverSideBlockSizeMb * MEGABYTE;
+        }
+
+        private static void requireStaleAfterAboveHeartbeat(Duration heartbeatInterval, Duration staleAfter) {
+            if (heartbeatInterval == null || staleAfter == null || staleAfter.compareTo(heartbeatInterval) > 0) {
+                return;
+            }
+            throw new IllegalArgumentException("app.partition.stale-after (" + staleAfter
+                    + ") precisa ser maior que app.partition.heartbeat-interval (" + heartbeatInterval + ")");
         }
     }
 

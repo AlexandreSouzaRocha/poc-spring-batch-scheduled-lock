@@ -21,14 +21,7 @@ public class OriginalFileArchiver {
     }
 
     public String moveToProcessed(ReceivedFileDocument original) {
-        return relocate(original, paths.processedPath(original));
-    }
-
-    public String moveToError(ReceivedFileDocument original) {
-        return relocate(original, paths.errorPath(original));
-    }
-
-    private String relocate(ReceivedFileDocument original, String target) {
+        String target = paths.processedPath(original);
         if (target.equals(original.currentPath())) {
             return target;
         }
