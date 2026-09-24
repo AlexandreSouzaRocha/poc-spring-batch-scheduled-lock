@@ -11,7 +11,9 @@ import org.springframework.core.retry.RetryPolicy;
 import org.springframework.core.retry.RetryTemplate;
 import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.mongodb.SessionSynchronization;
 import org.springframework.data.mongodb.core.MongoOperations;
+import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.jdbc.support.incrementer.DataFieldMaxValueIncrementer;
 
 public class CustomSequenceIncrementer implements DataFieldMaxValueIncrementer {
@@ -32,8 +34,17 @@ public class CustomSequenceIncrementer implements DataFieldMaxValueIncrementer {
     private final String sequenceName;
 
     public CustomSequenceIncrementer(MongoOperations mongoOperations, String sequenceName) {
-        this.mongoOperations = mongoOperations;
+        this.mongoOperations = outsideTransactions(mongoOperations);
         this.sequenceName = sequenceName;
+    }
+
+    private static MongoOperations outsideTransactions(MongoOperations mongoOperations) {
+        if (!(mongoOperations instanceof MongoTemplate template)) {
+            return mongoOperations;
+        }
+        MongoTemplate sequences = new MongoTemplate(template.getMongoDatabaseFactory(), template.getConverter());
+        sequences.setSessionSynchronization(SessionSynchronization.NEVER);
+        return sequences;
     }
 
     @Override
