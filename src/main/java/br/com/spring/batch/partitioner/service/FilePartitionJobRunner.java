@@ -1,6 +1,5 @@
 package br.com.spring.batch.partitioner.service;
 
-import br.com.spring.batch.partitioner.batch.heartbeat.FileHeartbeat;
 import br.com.spring.batch.partitioner.batch.job.FileJobParameters;
 import br.com.spring.batch.partitioner.batch.recovery.AbandonedExecutionRecovery;
 import br.com.spring.batch.partitioner.batch.recovery.OrphanJobInstanceCleaner;
@@ -23,16 +22,13 @@ public class FilePartitionJobRunner {
     private final AbandonedExecutionRecovery recovery;
     private final OrphanJobInstanceCleaner orphanCleaner;
     private final FileStatusService statusService;
-    private final FileHeartbeat heartbeat;
 
     public FilePartitionJobRunner(JobOperator jobOperator, Job filePartitionJob, AbandonedExecutionRecovery recovery,
-                                  OrphanJobInstanceCleaner orphanCleaner,
-                                  FileStatusService statusService, FileHeartbeat heartbeat) {
+                                  OrphanJobInstanceCleaner orphanCleaner, FileStatusService statusService) {
         this.gateway = new JobLauncherGateway(jobOperator, filePartitionJob);
         this.recovery = recovery;
         this.orphanCleaner = orphanCleaner;
         this.statusService = statusService;
-        this.heartbeat = heartbeat;
     }
 
     public void run(ReceivedFileDocument file) {
@@ -41,11 +37,9 @@ public class FilePartitionJobRunner {
         } catch (JobInstanceAlreadyCompleteException e) {
             log.warn("file.process").field("fileId", file.id()).field("action", "sync-status")
                     .log("job já estava COMPLETED; status do arquivo sincronizado");
-            statusService.completed(file.id(), file.owner(), 0);
+            statusService.completed(file.id());
         } catch (Exception e) {
             failure(file, e);
-        } finally {
-            heartbeat.stop(file.id());
         }
     }
 
@@ -56,23 +50,23 @@ public class FilePartitionJobRunner {
             return;
         }
         log.error("file.process").field("fileId", file.id()).error(error).log("falha ao executar o job");
-        statusService.failed(file.id(), file.owner(), ErrorSummary.oneLine(error), true);
+        statusService.failed(file.id(), ErrorSummary.oneLine(error), true);
     }
 
     private void start(ReceivedFileDocument file) throws Exception {
-        boolean restart = recovery.prepareRestart(file.id());
+        boolean restart = recovery.prepareRestart(file);
         log.info("file.process").field("fileId", file.id()).field("fileName", file.fileName())
                 .field("attempt", file.attempts()).field("restart", restart)
                 .data("status", file.status()).data("sizeBytes", file.sizeBytes())
                 .log(restart ? "retomando particionamento de onde parou" : "iniciando particionamento");
-        orphanCleaner.removeOrphanOf(file.id());
-        gateway.start(file.id());
+        orphanCleaner.removeOrphanOf(file);
+        gateway.start(file.fileName());
     }
 
     private record JobLauncherGateway(JobOperator jobOperator, Job job) {
 
-        void start(String fileId) throws Exception {
-            jobOperator.start(job, FileJobParameters.forFile(fileId));
+        void start(String fileName) throws Exception {
+            jobOperator.start(job, FileJobParameters.forFile(fileName));
         }
     }
 }

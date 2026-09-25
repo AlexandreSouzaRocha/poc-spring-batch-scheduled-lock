@@ -39,7 +39,7 @@ for NAME in $NAMES; do
   check "todas as partições com tamanho, header e publicação corretos" "$(verification_field "$ID" "d['allPartitionsValid']")"
   check "partições na pasta $FOLDER/" "$(verification_field "$ID" "all(p['path'].startswith('$FOLDER/') for p in d['partitions'])")"
   check "original movido para processados/ e removido de entrada/" "$(verification_field "$ID" "d['currentPath'].startswith('processados/') and d['currentPathExists'] and not d['sourcePathExists']")"
-  check "processado na primeira tentativa" "$(file_field "$ID" "str(d['file']['execution']['attempts'] == 1).lower()")"
+  check "processado na primeira tentativa" "$(file_field "$ID" "str(d['file']['attempts'] == 1).lower()")"
 
   info "métricas do arquivo $ID"
   print_metrics "$START" "$ID"

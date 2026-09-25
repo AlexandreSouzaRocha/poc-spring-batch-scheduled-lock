@@ -8,16 +8,16 @@ import org.springframework.stereotype.Service;
 @Service
 public class FilePartitionLauncher {
 
-    private final FileClaimService claimService;
+    private final FileIntakeService intakeService;
     private final FilePartitionJobRunner jobRunner;
 
-    public FilePartitionLauncher(FileClaimService claimService, FilePartitionJobRunner jobRunner) {
-        this.claimService = claimService;
+    public FilePartitionLauncher(FileIntakeService intakeService, FilePartitionJobRunner jobRunner) {
+        this.intakeService = intakeService;
         this.jobRunner = jobRunner;
     }
 
     public void launch(BlobFile file) {
-        RequestContext.run(RequestContext.childRequestId(FileClaimService.idOf(file)),
-                () -> claimService.claim(file).ifPresent(jobRunner::run));
+        RequestContext.run(RequestContext.childRequestId(FileIntakeService.idOf(file)),
+                () -> intakeService.take(file).ifPresent(jobRunner::run));
     }
 }

@@ -7,11 +7,11 @@ public final class ReceivedFileFields {
     public static final String PARENT_FILE_ID = "parent_file_id";
     public static final String FILE_NAME = "file_name";
     public static final String STATUS = "status";
+    public static final String ATTEMPTS = "attempts";
 
     public static final String BLOB = "blob";
     public static final String MOVEMENT = "movement";
     public static final String PARTITIONING = "partitioning";
-    public static final String EXECUTION = "execution";
     public static final String AUDIT = "audit";
 
     public static final String SOURCE_PATH = "source_path";
@@ -29,26 +29,15 @@ public final class ReceivedFileFields {
     public static final String BYTE_START = "byte_start";
     public static final String BYTE_END = "byte_end";
 
-    public static final String JOB_INSTANCE_ID = "job_instance_id";
-    public static final String LAST_JOB_EXECUTION_ID = "last_job_execution_id";
-    public static final String ATTEMPTS = "attempts";
-    public static final String LAST_ERROR = "last_error";
-    public static final String DURATION_MS = "duration_ms";
-
     public static final String CREATED_AT = "created_at";
     public static final String UPDATED_AT = "updated_at";
     public static final String PUBLISHED_AT = "published_at";
-    public static final String COMPLETED_AT = "completed_at";
 
     private ReceivedFileFields() {
     }
 
     public static String blob(String field) {
         return BLOB + "." + field;
-    }
-
-    public static String execution(String field) {
-        return EXECUTION + "." + field;
     }
 
     public static String movement(String field) {

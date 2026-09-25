@@ -1,5 +1,6 @@
 package br.com.spring.batch.partitioner.batch.step;
 
+import br.com.spring.batch.partitioner.batch.execution.FileExecutions;
 import br.com.spring.batch.partitioner.model.document.ReceivedFileDocument;
 import br.com.spring.batch.partitioner.repository.OriginalFileRepository;
 import br.com.spring.batch.partitioner.support.chaos.ChaosPoint;
@@ -13,10 +14,13 @@ public class FileStepSupport {
 
     private final OriginalFileRepository repository;
     private final FailureInjector failureInjector;
+    private final FileExecutions executions;
 
-    public FileStepSupport(OriginalFileRepository repository, FailureInjector failureInjector) {
+    public FileStepSupport(OriginalFileRepository repository, FailureInjector failureInjector,
+                           FileExecutions executions) {
         this.repository = repository;
         this.failureInjector = failureInjector;
+        this.executions = executions;
     }
 
     public ReceivedFileDocument load(FileStep step, ChaosPoint point) {
@@ -26,9 +30,8 @@ public class FileStepSupport {
     }
 
     public ReceivedFileDocument load(FileStep step) {
-        ReceivedFileDocument original = repository.getById(step.fileId());
-        requireOwnership(original, step.jobExecutionId());
-        return original;
+        requireCurrentExecution(step);
+        return repository.getById(step.fileId());
     }
 
     public ReceivedFileDocument load(String fileId) {
@@ -39,10 +42,10 @@ public class FileStepSupport {
         failureInjector.check(ChaosTarget.partition(original.id(), original.attempts(), partitionIndex));
     }
 
-    private static void requireOwnership(ReceivedFileDocument original, long jobExecutionId) {
-        if (original.isOwnedBy(jobExecutionId)) {
+    private void requireCurrentExecution(FileStep step) {
+        if (executions.isCurrent(step.fileName(), step.jobExecutionId())) {
             return;
         }
-        throw new FileOwnershipLostException(original.id(), jobExecutionId, original.owner());
+        throw new FileOwnershipLostException(step.fileName(), step.jobExecutionId());
     }
 }

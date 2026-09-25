@@ -7,6 +7,7 @@ import java.util.Optional;
 
 import br.com.spring.batch.partitioner.batch.job.BatchNames;
 import br.com.spring.batch.partitioner.batch.job.FileJobParameters;
+import br.com.spring.batch.partitioner.model.document.ReceivedFileDocument;
 import br.com.spring.batch.partitioner.support.log.StructuredLogger;
 
 import org.springframework.batch.core.BatchStatus;
@@ -30,10 +31,10 @@ public class AbandonedExecutionRecovery {
         this.jobRepository = jobRepository;
     }
 
-    public boolean prepareRestart(String fileId) {
+    public boolean prepareRestart(ReceivedFileDocument file) {
         Optional<JobInstance> instance = Optional.ofNullable(
-                jobRepository.getJobInstance(BatchNames.JOB_NAME, FileJobParameters.forFile(fileId)));
-        instance.flatMap(this::lastExecution).ifPresent(execution -> recover(fileId, execution));
+                jobRepository.getJobInstance(BatchNames.JOB_NAME, FileJobParameters.forFile(file.fileName())));
+        instance.flatMap(this::lastExecution).ifPresent(execution -> recover(file.id(), execution));
         return instance.isPresent();
     }
 

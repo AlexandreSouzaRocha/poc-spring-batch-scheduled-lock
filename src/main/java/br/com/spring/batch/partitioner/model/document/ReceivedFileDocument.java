@@ -1,6 +1,8 @@
 package br.com.spring.batch.partitioner.model.document;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.UUID;
 
 import br.com.spring.batch.partitioner.model.enums.FileRole;
 import br.com.spring.batch.partitioner.model.enums.FileStatus;
@@ -17,26 +19,31 @@ public record ReceivedFileDocument(
         @Field(ReceivedFileFields.PARENT_FILE_ID) String parentFileId,
         @Field(ReceivedFileFields.FILE_NAME) String fileName,
         @Field(ReceivedFileFields.STATUS) FileStatus status,
+        @Field(ReceivedFileFields.ATTEMPTS) Integer attempts,
         @Field(ReceivedFileFields.BLOB) BlobLocation blob,
         @Field(ReceivedFileFields.MOVEMENT) MovementInfo movement,
         @Field(ReceivedFileFields.PARTITIONING) PartitioningInfo partitioning,
-        @Field(ReceivedFileFields.EXECUTION) ExecutionInfo execution,
         @Field(ReceivedFileFields.AUDIT) AuditInfo audit) {
 
     public static final String COLLECTION = "received_file_management";
 
-    public static ReceivedFileDocument original(String id, String fileName, BlobLocation blob, MovementInfo movement,
+    private static final int FIRST_ATTEMPT = 1;
+
+    public static ReceivedFileDocument original(String fileName, BlobLocation blob, MovementInfo movement,
             Instant now) {
-        return new ReceivedFileDocument(id, FileRole.ORIGINAL, null, fileName, FileStatus.PARTITIONING, blob, movement,
-                null, ExecutionInfo.firstAttempt(), AuditInfo.createdAt(now));
+        return new ReceivedFileDocument(idOf(fileName), FileRole.ORIGINAL, null, fileName, FileStatus.PARTITIONING,
+                FIRST_ATTEMPT, blob, movement, null, AuditInfo.createdAt(now));
+    }
+
+    public static String idOf(String fileName) {
+        return UUID.nameUUIDFromBytes(fileName.getBytes(StandardCharsets.UTF_8)).toString();
     }
 
     public ReceivedFileDocument uploadedPartition(PartitionRange range, String fileName, String path,
             long sizeBytes, Instant now) {
         return new ReceivedFileDocument(partitionId(range.index()), FileRole.PARTITION, id, fileName,
-                FileStatus.UPLOADED, BlobLocation.written(blob.sourcePath(), path, sizeBytes),
-                movement, PartitioningInfo.ofPartition(range, partitioning.count()),
-                ExecutionInfo.inheritedFrom(execution), AuditInfo.createdAt(now));
+                FileStatus.UPLOADED, null, BlobLocation.written(blob.sourcePath(), path, sizeBytes),
+                movement, PartitioningInfo.ofPartition(range, partitioning.count()), AuditInfo.createdAt(now));
     }
 
     public String partitionId(int partitionIndex) {
@@ -51,28 +58,12 @@ public record ReceivedFileDocument(
         return blob.sizeBytes();
     }
 
-    public int attempts() {
-        return execution.attempts();
-    }
-
-    public String lastError() {
-        return execution.lastError();
-    }
-
     public boolean attemptsExhausted(int maxAttempts) {
-        return attempts() >= maxAttempts;
+        return attempts >= maxAttempts;
     }
 
     public boolean hasMovement() {
         return movement != null;
-    }
-
-    public Long owner() {
-        return execution.lastJobExecutionId();
-    }
-
-    public boolean isOwnedBy(long jobExecutionId) {
-        return status.isInProgress() && Long.valueOf(jobExecutionId).equals(owner());
     }
 
     public boolean isInspected() {

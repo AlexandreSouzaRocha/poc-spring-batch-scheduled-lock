@@ -21,29 +21,25 @@ public class FileStatusService {
         this.settings = settings;
     }
 
-    public void started(String fileId, long jobInstanceId, long jobExecutionId) {
-        if (originals.recordJobExecution(fileId, jobInstanceId, jobExecutionId)) {
-            return;
-        }
-        reportOwnershipLost(fileId, jobExecutionId, "início do job");
+    public void completed(String fileId) {
+        originals.complete(fileId);
     }
 
-    public void completed(String fileId, Long owner, long durationMs) {
-        if (originals.complete(fileId, owner, durationMs)) {
-            return;
-        }
-        reportOwnershipLost(fileId, owner, "COMPLETED");
-    }
-
-    public void failed(String fileId, Long owner, String error, boolean retryable) {
+    public void failed(String fileId, String error, boolean retryable) {
         ReceivedFileDocument file = originals.getById(fileId);
-        FileStatus status = retryable && !file.attemptsExhausted(settings.maxAttempts())
-                ? FileStatus.FAILED_PARTITIONING : FileStatus.FAILED;
-        if (!markFailure(fileId, owner, status, error)) {
-            reportOwnershipLost(fileId, owner, status.name());
+        if (retryable && !file.attemptsExhausted(settings.maxAttempts())) {
+            originals.failPartitioning(fileId);
+            log.warn("file.fail").field("fileId", fileId).field("status", FileStatus.FAILED_PARTITIONING)
+                    .field("attempt", file.attempts()).field("maxAttempts", settings.maxAttempts())
+                    .data("fileName", file.fileName()).data("error", error)
+                    .log("falha no processamento; será retomado no próximo ciclo");
             return;
         }
-        logFailure(file, status, error, retryable);
+        originals.fail(fileId);
+        log.error("file.fail").field("fileId", fileId).field("status", FileStatus.FAILED)
+                .field("attempt", file.attempts()).field("maxAttempts", settings.maxAttempts())
+                .field("retryable", retryable).data("fileName", file.fileName()).data("error", error)
+                .log("falha definitiva; arquivo mantido no blob aguardando tratativa manual");
     }
 
     public ReceivedFileDocument requeue(String fileId) {
@@ -51,36 +47,8 @@ public class FileStatusService {
         requireFailed(file);
         originals.requeue(fileId);
         log.warn("file.requeue").field("fileId", fileId).field("previousStatus", file.status())
-                .data("fileName", file.fileName()).data("lastError", file.lastError())
-                .log("arquivo devolvido para reprocessamento; tentativas zeradas");
+                .data("fileName", file.fileName()).log("arquivo devolvido para reprocessamento; tentativas zeradas");
         return originals.getById(fileId);
-    }
-
-    private boolean markFailure(String fileId, Long owner, FileStatus status, String error) {
-        if (status == FileStatus.FAILED) {
-            return originals.fail(fileId, owner, error);
-        }
-        return originals.failPartitioning(fileId, owner, error);
-    }
-
-    private void logFailure(ReceivedFileDocument file, FileStatus status, String error, boolean retryable) {
-        if (status == FileStatus.FAILED_PARTITIONING) {
-            log.warn("file.fail").field("fileId", file.id()).field("status", status)
-                    .field("attempt", file.attempts()).field("maxAttempts", settings.maxAttempts())
-                    .data("fileName", file.fileName()).data("error", error)
-                    .log("falha no processamento; será retomado no próximo ciclo");
-            return;
-        }
-        log.error("file.fail").field("fileId", file.id()).field("status", status)
-                .field("attempt", file.attempts()).field("maxAttempts", settings.maxAttempts())
-                .field("retryable", retryable).data("fileName", file.fileName()).data("error", error)
-                .log("falha definitiva; arquivo mantido no blob aguardando tratativa manual");
-    }
-
-    private static void reportOwnershipLost(String fileId, Long owner, String transition) {
-        log.warn("file.ownership.lost").field("fileId", fileId).field("jobExecutionId", owner)
-                .field("transition", transition)
-                .log("arquivo pertence a outra execução; status não alterado por esta instância");
     }
 
     private static void requireFailed(ReceivedFileDocument file) {

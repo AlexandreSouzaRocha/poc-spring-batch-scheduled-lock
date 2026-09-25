@@ -28,9 +28,9 @@ class BlobPathsTest {
 
     private static ReceivedFileDocument inspectedOriginal() {
         MovementInfo movement = new MovementInfo("H2026-09-16ULTIMA ", MovementType.ULTIMA, "2026-09-16");
-        ReceivedFileDocument received = ReceivedFileDocument.original("file-1", "MOV.txt",
+        ReceivedFileDocument received = ReceivedFileDocument.original("MOV.txt",
                 BlobLocation.received("entrada/MOV.txt", "etag", 100), movement, Instant.now());
-        return new ReceivedFileDocument(received.id(), received.role(), null, received.fileName(), received.status(),
-                received.blob(), movement, null, received.execution(), received.audit());
+        return new ReceivedFileDocument("file-1", received.role(), null, received.fileName(), received.status(),
+                received.attempts(), received.blob(), movement, null, received.audit());
     }
 }

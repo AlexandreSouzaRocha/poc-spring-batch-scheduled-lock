@@ -14,6 +14,10 @@ public record FileStep(StepContribution contribution) {
         return FileJobParameters.fileIdOf(stepExecution());
     }
 
+    public String fileName() {
+        return FileJobParameters.fileNameOf(stepExecution().getJobExecution());
+    }
+
     public JobInstance jobInstance() {
         return stepExecution().getJobExecution().getJobInstance();
     }

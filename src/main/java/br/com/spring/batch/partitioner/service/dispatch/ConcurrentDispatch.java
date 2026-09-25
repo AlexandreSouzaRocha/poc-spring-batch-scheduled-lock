@@ -5,6 +5,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 
+import br.com.spring.batch.partitioner.config.properties.SchedulerProperties;
+import br.com.spring.batch.partitioner.lock.ProcessingLock;
 import br.com.spring.batch.partitioner.service.FilePartitionLauncher;
 import br.com.spring.batch.partitioner.service.InboxFiles;
 import br.com.spring.batch.partitioner.storage.BlobFile;
@@ -13,12 +15,15 @@ import br.com.spring.batch.partitioner.support.log.RequestContext;
 public class ConcurrentDispatch implements InboxDispatch {
 
     private final FilePartitionLauncher launcher;
-    private final GroupGuard guard;
+    private final ProcessingLock processingLock;
+    private final SchedulerProperties scheduler;
     private final int maxConcurrentTypes;
 
-    public ConcurrentDispatch(FilePartitionLauncher launcher, GroupGuard guard, int maxConcurrentTypes) {
+    public ConcurrentDispatch(FilePartitionLauncher launcher, ProcessingLock processingLock,
+            SchedulerProperties scheduler, int maxConcurrentTypes) {
         this.launcher = launcher;
-        this.guard = guard;
+        this.processingLock = processingLock;
+        this.scheduler = scheduler;
         this.maxConcurrentTypes = maxConcurrentTypes;
     }
 
@@ -34,7 +39,7 @@ public class ConcurrentDispatch implements InboxDispatch {
     private void launchGroup(String group, List<BlobFile> files, Semaphore permits) {
         permits.acquireUninterruptibly();
         try {
-            guard.run(group, () -> files.forEach(launcher::launch));
+            processingLock.tryRun(scheduler.lockNameFor(group), () -> files.forEach(launcher::launch));
         } finally {
             permits.release();
         }

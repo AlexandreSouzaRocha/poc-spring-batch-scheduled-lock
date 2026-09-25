@@ -91,29 +91,15 @@ public record AppProperties(
             @Min(1) int maxAttempts,
             @Min(1) int maxConcurrentTypes,
             @NotNull ConcurrencyControl concurrencyControl,
-            @NotNull Duration heartbeatInterval,
-            @NotNull Duration staleAfter,
             @Min(1) int threadsPerPartition,
             @Min(0) int progressIntervalSeconds,
             boolean serverSideCopy,
             @Min(1) int serverSideBlockSizeMb) {
 
-        public PartitionSettings {
-            requireStaleAfterAboveHeartbeat(heartbeatInterval, staleAfter);
-        }
-
         private static final int MEGABYTE = 1024 * 1024;
 
         public int serverSideBlockSizeBytes() {
             return serverSideBlockSizeMb * MEGABYTE;
-        }
-
-        private static void requireStaleAfterAboveHeartbeat(Duration heartbeatInterval, Duration staleAfter) {
-            if (heartbeatInterval == null || staleAfter == null || staleAfter.compareTo(heartbeatInterval) > 0) {
-                return;
-            }
-            throw new IllegalArgumentException("app.partition.stale-after (" + staleAfter
-                    + ") precisa ser maior que app.partition.heartbeat-interval (" + heartbeatInterval + ")");
         }
     }
 

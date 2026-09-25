@@ -21,7 +21,7 @@ public record InboxFiles(List<BlobFile> files) {
     }
 
     public InboxFiles including(List<ReceivedFileDocument> unfinished) {
-        Set<String> listed = files.stream().map(FileClaimService::idOf).collect(Collectors.toSet());
+        Set<String> listed = files.stream().map(FileIntakeService::idOf).collect(Collectors.toSet());
         List<BlobFile> missing = unfinished.stream()
                 .filter(file -> !listed.contains(file.id()))
                 .map(InboxFiles::sourceBlobOf)

@@ -9,11 +9,9 @@ import br.com.spring.batch.partitioner.config.properties.SchedulerProperties;
 import br.com.spring.batch.partitioner.lock.ProcessingLock;
 import br.com.spring.batch.partitioner.model.layout.FileLayout;
 import br.com.spring.batch.partitioner.service.FilePartitionLauncher;
-import br.com.spring.batch.partitioner.service.dispatch.ClaimGuard;
 import br.com.spring.batch.partitioner.service.dispatch.ConcurrentDispatch;
 import br.com.spring.batch.partitioner.service.dispatch.InboxDispatch;
 import br.com.spring.batch.partitioner.service.dispatch.SequentialDispatch;
-import br.com.spring.batch.partitioner.service.dispatch.TypeLockGuard;
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
@@ -49,18 +47,11 @@ public class SettingsConfig {
     }
 
     @Bean
-    @ConditionalOnProperty(prefix = "app.partition", name = "concurrency-control", havingValue = "CLAIM",
+    @ConditionalOnProperty(prefix = "app.partition", name = "concurrency-control", havingValue = "TYPE_LOCK",
             matchIfMissing = true)
-    public InboxDispatch claimDispatch(FilePartitionLauncher launcher, PartitionSettings settings) {
-        return new ConcurrentDispatch(launcher, new ClaimGuard(), settings.maxConcurrentTypes());
-    }
-
-    @Bean
-    @ConditionalOnProperty(prefix = "app.partition", name = "concurrency-control", havingValue = "TYPE_LOCK")
     public InboxDispatch typeLockDispatch(FilePartitionLauncher launcher, ProcessingLock processingLock,
             SchedulerProperties scheduler, PartitionSettings settings) {
-        return new ConcurrentDispatch(launcher, new TypeLockGuard(processingLock, scheduler),
-                settings.maxConcurrentTypes());
+        return new ConcurrentDispatch(launcher, processingLock, scheduler, settings.maxConcurrentTypes());
     }
 
     @Bean

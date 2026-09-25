@@ -13,6 +13,7 @@ import br.com.spring.batch.partitioner.batch.tasklet.PublishPartitionsTasklet;
 import br.com.spring.batch.partitioner.batch.tasklet.RegisterPartitionsTasklet;
 import br.com.spring.batch.partitioner.batch.tasklet.ValidateHeaderTasklet;
 import br.com.spring.batch.partitioner.config.properties.AppProperties.PartitionSettings;
+import br.com.spring.batch.partitioner.model.document.ReceivedFileDocument;
 
 import org.springframework.batch.core.configuration.annotation.JobScope;
 import org.springframework.batch.core.job.Job;
@@ -59,8 +60,8 @@ public class FilePartitionJobConfig {
     @Bean
     @JobScope
     public FilePartitioner filePartitioner(FileStepSupport support, FileLayout layout,
-                                           @Value("#{jobParameters['" + FileJobParameters.FILE_ID + "']}") String fileId) {
-        return new FilePartitioner(support, fileId, layout);
+                                           @Value("#{jobParameters['" + FileJobParameters.FILE_NAME + "']}") String fileName) {
+        return new FilePartitioner(support, ReceivedFileDocument.idOf(fileName), layout);
     }
 
     @Bean

@@ -4,6 +4,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import br.com.spring.batch.partitioner.batch.execution.ExecutionSummary;
+import br.com.spring.batch.partitioner.batch.execution.FileExecutions;
 import br.com.spring.batch.partitioner.model.document.ReceivedFileDocument;
 import br.com.spring.batch.partitioner.model.enums.FileStatus;
 import br.com.spring.batch.partitioner.repository.OriginalFileRepository;
@@ -30,13 +32,16 @@ public class ReceivedFileController {
     private final PartitionFileRepository partitions;
     private final FileVerificationService verificationService;
     private final FileStatusService statusService;
+    private final FileExecutions executions;
 
     public ReceivedFileController(OriginalFileRepository originals, PartitionFileRepository partitions,
-                                  FileVerificationService verificationService, FileStatusService statusService) {
+                                  FileVerificationService verificationService, FileStatusService statusService,
+                                  FileExecutions executions) {
         this.originals = originals;
         this.partitions = partitions;
         this.verificationService = verificationService;
         this.statusService = statusService;
+        this.executions = executions;
     }
 
     @GetMapping
@@ -58,7 +63,8 @@ public class ReceivedFileController {
     @GetMapping("/{id}")
     public ResponseEntity<FileDetail> detail(@PathVariable String id) {
         return originals.findById(id)
-                .map(file -> ResponseEntity.ok(new FileDetail(file, partitions.findByParent(id))))
+                .map(file -> ResponseEntity.ok(new FileDetail(file, executions.summary(file.fileName()).orElse(null),
+                        partitions.findByParent(id))))
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
@@ -69,6 +75,7 @@ public class ReceivedFileController {
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
-    public record FileDetail(ReceivedFileDocument file, List<ReceivedFileDocument> partitions) {
+    public record FileDetail(ReceivedFileDocument file, ExecutionSummary lastExecution,
+                             List<ReceivedFileDocument> partitions) {
     }
 }

@@ -2,6 +2,7 @@ package br.com.spring.batch.partitioner.batch.recovery;
 
 import br.com.spring.batch.partitioner.batch.job.BatchNames;
 import br.com.spring.batch.partitioner.batch.job.FileJobParameters;
+import br.com.spring.batch.partitioner.model.document.ReceivedFileDocument;
 import br.com.spring.batch.partitioner.support.log.StructuredLogger;
 
 import org.springframework.batch.core.job.JobInstance;
@@ -20,14 +21,15 @@ public class OrphanJobInstanceCleaner {
         this.jobRepository = jobRepository;
     }
 
-    public void removeOrphanOf(String fileId) {
+    public void removeOrphanOf(ReceivedFileDocument file) {
         JobInstance instance = jobRepository.getJobInstance(BatchNames.JOB_NAME,
-                FileJobParameters.forFile(fileId));
+                FileJobParameters.forFile(file.fileName()));
         if (instance == null || !jobRepository.getJobExecutions(instance).isEmpty()) {
             return;
         }
         jobRepository.deleteJobInstance(instance);
-        log.warn("instance.orphan").field("fileId", fileId).field("jobInstanceId", instance.getId())
+        log.warn("instance.orphan").field("fileId", file.id()).field("fileName", file.fileName())
+                .field("jobInstanceId", instance.getId())
                 .log("job instance sem execução removida antes de relançar o job");
     }
 }

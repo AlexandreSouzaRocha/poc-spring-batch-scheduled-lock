@@ -1,13 +1,12 @@
 package br.com.spring.batch.partitioner.batch.listener;
 
-import br.com.spring.batch.partitioner.batch.heartbeat.FileHeartbeat;
+import br.com.spring.batch.partitioner.batch.execution.FileExecutions;
 import br.com.spring.batch.partitioner.batch.job.FileJobParameters;
-import br.com.spring.batch.partitioner.batch.metrics.StepVolume;
-import br.com.spring.batch.partitioner.batch.metrics.Throughput;
 import br.com.spring.batch.partitioner.batch.progress.PartitionProgressReporter;
 import br.com.spring.batch.partitioner.model.layout.InvalidFileException;
 import br.com.spring.batch.partitioner.service.FileStatusService;
 import br.com.spring.batch.partitioner.support.log.ErrorSummary;
+import br.com.spring.batch.partitioner.support.log.StructuredLogger;
 
 import org.springframework.batch.core.BatchStatus;
 import org.springframework.batch.core.job.JobExecution;
@@ -17,39 +16,34 @@ import org.springframework.stereotype.Component;
 @Component
 public class FileStatusJobListener implements JobExecutionListener {
 
+    private static final StructuredLogger log = StructuredLogger.of(FileStatusJobListener.class, "file-partitioning");
+
     private final FileStatusService statusService;
     private final PartitionProgressReporter progressReporter;
-    private final FileHeartbeat heartbeat;
+    private final FileExecutions executions;
 
     public FileStatusJobListener(FileStatusService statusService, PartitionProgressReporter progressReporter,
-                                 FileHeartbeat heartbeat) {
+                                 FileExecutions executions) {
         this.statusService = statusService;
         this.progressReporter = progressReporter;
-        this.heartbeat = heartbeat;
-    }
-
-    @Override
-    public void beforeJob(JobExecution jobExecution) {
-        String fileId = FileJobParameters.fileIdOf(jobExecution);
-        statusService.started(fileId, jobExecution.getJobInstanceId(), jobExecution.getId());
-        heartbeat.start(fileId, jobExecution.getId());
+        this.executions = executions;
     }
 
     @Override
     public void afterJob(JobExecution jobExecution) {
         String fileId = FileJobParameters.fileIdOf(jobExecution);
-        heartbeat.stop(fileId);
         progressReporter.finish(fileId, jobExecution.getId());
-        if (jobExecution.getStatus() == BatchStatus.COMPLETED) {
-            statusService.completed(fileId, jobExecution.getId(), durationMs(jobExecution));
+        if (!executions.isCurrent(FileJobParameters.fileNameOf(jobExecution), jobExecution.getId())) {
+            log.warn("file.ownership.lost").field("fileId", fileId).field("jobExecutionId", jobExecution.getId())
+                    .field("status", jobExecution.getStatus())
+                    .log("outra execução assumiu o arquivo; status não alterado por esta instância");
             return;
         }
-        statusService.failed(fileId, jobExecution.getId(), failureOf(jobExecution), isRetryable(jobExecution));
-    }
-
-    private static long durationMs(JobExecution jobExecution) {
-        return Throughput.between(jobExecution.getStartTime(), jobExecution.getEndTime(), StepVolume.empty())
-                .durationMs();
+        if (jobExecution.getStatus() == BatchStatus.COMPLETED) {
+            statusService.completed(fileId);
+            return;
+        }
+        statusService.failed(fileId, failureOf(jobExecution), isRetryable(jobExecution));
     }
 
     private static String failureOf(JobExecution jobExecution) {

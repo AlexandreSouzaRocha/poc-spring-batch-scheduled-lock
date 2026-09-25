@@ -1,20 +1,14 @@
 package br.com.spring.batch.partitioner.repository;
 
-import java.time.Duration;
 import java.time.Instant;
-import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.stream.IntStream;
 
 import br.com.spring.batch.partitioner.model.document.BlobLocation;
 import br.com.spring.batch.partitioner.model.document.ReceivedFileDocument;
 import br.com.spring.batch.partitioner.model.document.ReceivedFileFields;
 import br.com.spring.batch.partitioner.model.enums.FileStatus;
 import com.mongodb.client.MongoClients;
+import org.bson.Document;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.testcontainers.junit.jupiter.Container;
@@ -35,7 +29,7 @@ import static org.springframework.data.mongodb.core.query.Query.query;
 class OriginalFileRepositoryIntegrationTest {
 
     private static final int MAX_ATTEMPTS = 3;
-    private static final Duration STALE_AFTER = Duration.ofMinutes(2);
+    private static final String FILE_NAME = "MOV_ABERTO_2026.09.24.001.txt";
 
     @Container
     private static final MongoDBContainer MONGO = new MongoDBContainer("mongo:7");
@@ -46,192 +40,120 @@ class OriginalFileRepositoryIntegrationTest {
     @BeforeEach
     void setUp() {
         mongoTemplate = new MongoTemplate(new SimpleMongoClientDatabaseFactory(
-                MongoClients.create(MONGO.getConnectionString()), "claim_test"));
+                MongoClients.create(MONGO.getConnectionString()), "intake_test"));
         mongoTemplate.dropCollection(ReceivedFileDocument.COLLECTION);
         repository = new OriginalFileRepository(new ReceivedFileCollection(mongoTemplate));
     }
 
     @Test
-    void secondRegistrationOfSameFileFailsWithDuplicateKey() {
-        repository.register(original("file-1"));
+    void registersWithAttemptsAtRootAndWithoutExecutionData() {
+        ReceivedFileDocument original = original(FILE_NAME);
+        repository.register(original);
 
-        assertThatThrownBy(() -> repository.register(original("file-1")))
+        Document stored = mongoTemplate.findById(original.id(), Document.class, ReceivedFileDocument.COLLECTION);
+
+        assertThat(stored.getString(ReceivedFileFields.STATUS)).isEqualTo("PARTITIONING");
+        assertThat(stored.getInteger(ReceivedFileFields.ATTEMPTS)).isEqualTo(1);
+        assertThat(stored).doesNotContainKey("execution");
+        assertThat(stored.get(ReceivedFileFields.AUDIT, Document.class)).doesNotContainKey("completed_at");
+    }
+
+    @Test
+    void idIsDerivedFromTheFileName() {
+        assertThat(original(FILE_NAME).id()).isEqualTo(ReceivedFileDocument.idOf(FILE_NAME));
+    }
+
+    @Test
+    void secondRegistrationOfSameFileNameFailsWithDuplicateKey() {
+        repository.register(original(FILE_NAME));
+
+        assertThatThrownBy(() -> repository.register(original(FILE_NAME)))
                 .isInstanceOf(DuplicateKeyException.class);
-        assertThat(repository.getById("file-1").status()).isEqualTo(FileStatus.PARTITIONING);
     }
 
     @Test
-    void activePartitioningIsNotClaimed() {
-        repository.register(original("file-1"));
+    void interruptedPartitioningIsResumedWithOneMoreAttempt() {
+        String id = registered(FILE_NAME);
 
-        assertThat(repository.claimForReprocessing("file-1", staleBefore(), MAX_ATTEMPTS)).isEmpty();
-    }
+        Optional<ReceivedFileDocument> resumed = repository.resume(id, MAX_ATTEMPTS);
 
-    @Test
-    void failedPartitioningIsClaimedForReprocessing() {
-        repository.register(original("file-1"));
-        repository.failPartitioning("file-1", null, "timeout no kafka");
-
-        Optional<ReceivedFileDocument> claimed = repository.claimForReprocessing("file-1", staleBefore(),
-                MAX_ATTEMPTS);
-
-        assertThat(claimed).get().satisfies(file -> {
-            assertThat(file.status()).isEqualTo(FileStatus.REPROCESSING);
+        assertThat(resumed).get().satisfies(file -> {
+            assertThat(file.status()).isEqualTo(FileStatus.PARTITIONING);
             assertThat(file.attempts()).isEqualTo(2);
         });
     }
 
     @Test
-    void stalePartitioningIsClaimedByExactlyOneInstance() throws Exception {
-        repository.register(original("file-1"));
-        age("file-1");
+    void failedPartitioningIsResumedAsPartitioning() {
+        String id = registered(FILE_NAME);
+        repository.failPartitioning(id);
 
-        List<Optional<ReceivedFileDocument>> results = concurrently(8,
-                () -> repository.claimForReprocessing("file-1", staleBefore(), MAX_ATTEMPTS));
-
-        assertThat(results.stream().filter(Optional::isPresent).count()).isEqualTo(1);
-        assertThat(repository.getById("file-1").status()).isEqualTo(FileStatus.REPROCESSING);
-        assertThat(repository.getById("file-1").attempts()).isEqualTo(2);
+        assertThat(repository.resume(id, MAX_ATTEMPTS)).get()
+                .extracting(ReceivedFileDocument::status).isEqualTo(FileStatus.PARTITIONING);
     }
 
     @Test
-    void staleReprocessingIsClaimedAgain() {
-        repository.register(original("file-1"));
-        repository.failPartitioning("file-1", null, "erro");
-        repository.claimForReprocessing("file-1", staleBefore(), MAX_ATTEMPTS);
-        age("file-1");
+    void exhaustedAttemptsAreNotResumedAndBecomeFailed() {
+        String id = registered(FILE_NAME);
+        attempts(id, MAX_ATTEMPTS);
 
-        assertThat(repository.claimForReprocessing("file-1", staleBefore(), MAX_ATTEMPTS)).isPresent();
+        assertThat(repository.resume(id, MAX_ATTEMPTS)).isEmpty();
+        assertThat(repository.failExhausted(id, MAX_ATTEMPTS)).isTrue();
+        assertThat(repository.getById(id).status()).isEqualTo(FileStatus.FAILED);
     }
 
     @Test
-    void staleFileWithExhaustedAttemptsBecomesFailed() {
-        repository.register(original("file-1"));
-        mongoTemplate.updateFirst(query(where(ReceivedFileFields.ID).is("file-1")),
-                new Update().set(ReceivedFileFields.execution(ReceivedFileFields.ATTEMPTS), MAX_ATTEMPTS),
-                ReceivedFileDocument.COLLECTION);
-        age("file-1");
+    void failedFileIsOnlyResumedAfterRequeue() {
+        String id = registered(FILE_NAME);
+        repository.fail(id);
 
-        assertThat(repository.claimForReprocessing("file-1", staleBefore(), MAX_ATTEMPTS)).isEmpty();
-        assertThat(repository.failAbandoned("file-1", staleBefore(), MAX_ATTEMPTS, "tentativas esgotadas")).isTrue();
-        assertThat(repository.getById("file-1").status()).isEqualTo(FileStatus.FAILED);
+        assertThat(repository.resume(id, MAX_ATTEMPTS)).isEmpty();
+        assertThat(repository.failExhausted(id, MAX_ATTEMPTS)).isFalse();
+
+        repository.requeue(id);
+
+        assertThat(repository.getById(id).status()).isEqualTo(FileStatus.FAILED_PARTITIONING);
+        assertThat(repository.getById(id).attempts()).isZero();
+        assertThat(repository.resume(id, MAX_ATTEMPTS)).get()
+                .extracting(ReceivedFileDocument::attempts).isEqualTo(1);
     }
 
     @Test
-    void failedFileIsNeverClaimedUntilRequeued() {
-        repository.register(original("file-1"));
-        repository.fail("file-1", null, "erro definitivo");
-        age("file-1");
+    void completedFileIsNeverResumed() {
+        String id = registered(FILE_NAME);
+        repository.complete(id);
 
-        assertThat(repository.claimForReprocessing("file-1", staleBefore(), MAX_ATTEMPTS)).isEmpty();
-
-        repository.requeue("file-1");
-
-        assertThat(repository.getById("file-1").status()).isEqualTo(FileStatus.FAILED_PARTITIONING);
-        assertThat(repository.claimForReprocessing("file-1", staleBefore(), MAX_ATTEMPTS)).isPresent();
-    }
-
-    @Test
-    void heartbeatKeepsFileInProgressAlive() {
-        repository.register(original("file-1"));
-        repository.recordJobExecution("file-1", 1, 10);
-        age("file-1");
-
-        assertThat(repository.heartbeat("file-1", 10)).isTrue();
-        assertThat(repository.claimForReprocessing("file-1", staleBefore(), MAX_ATTEMPTS)).isEmpty();
-    }
-
-    @Test
-    void reclaimRevokesThePreviousOwner() {
-        repository.register(original("file-1"));
-        repository.recordJobExecution("file-1", 1, 10);
-        age("file-1");
-
-        ReceivedFileDocument reclaimed = repository.claimForReprocessing("file-1", staleBefore(), MAX_ATTEMPTS)
-                .orElseThrow();
-
-        assertThat(reclaimed.owner()).isNull();
-        assertThat(reclaimed.isOwnedBy(10)).isFalse();
-        assertThat(repository.heartbeat("file-1", 10)).isFalse();
-        assertThat(repository.complete("file-1", 10L, 5)).isFalse();
-        assertThat(repository.fail("file-1", 10L, "zumbi")).isFalse();
-        assertThat(repository.getById("file-1").status()).isEqualTo(FileStatus.REPROCESSING);
-    }
-
-    @Test
-    void newOwnerTakesOverAndFinishesAfterReclaim() {
-        repository.register(original("file-1"));
-        repository.recordJobExecution("file-1", 1, 10);
-        age("file-1");
-        repository.claimForReprocessing("file-1", staleBefore(), MAX_ATTEMPTS);
-
-        assertThat(repository.recordJobExecution("file-1", 1, 11)).isTrue();
-        assertThat(repository.getById("file-1").isOwnedBy(11)).isTrue();
-        assertThat(repository.complete("file-1", 10L, 5)).isFalse();
-        assertThat(repository.complete("file-1", 11L, 5)).isTrue();
-        assertThat(repository.getById("file-1").status()).isEqualTo(FileStatus.COMPLETED);
-    }
-
-    @Test
-    void onlyOneExecutionBecomesOwner() {
-        repository.register(original("file-1"));
-
-        assertThat(repository.recordJobExecution("file-1", 1, 10)).isTrue();
-        assertThat(repository.recordJobExecution("file-1", 1, 11)).isFalse();
-        assertThat(repository.getById("file-1").owner()).isEqualTo(10L);
-    }
-
-    @Test
-    void heartbeatDoesNotTouchFinishedFile() {
-        repository.register(original("file-1"));
-        repository.recordJobExecution("file-1", 1, 10);
-        repository.fail("file-1", 10L, "erro");
-        age("file-1");
-        Instant before = repository.getById("file-1").audit().updatedAt();
-
-        assertThat(repository.heartbeat("file-1", 10)).isFalse();
-        assertThat(repository.getById("file-1").audit().updatedAt()).isEqualTo(before);
+        assertThat(repository.resume(id, MAX_ATTEMPTS)).isEmpty();
+        assertThat(repository.getById(id).status()).isEqualTo(FileStatus.COMPLETED);
     }
 
     @Test
     void unfinishedFilesAreThoseInProgressOrAwaitingRetry() {
-        List.of("partitioning", "retry", "failed", "completed").forEach(id -> repository.register(original(id)));
-        repository.failPartitioning("retry", null, "erro");
-        repository.fail("failed", null, "erro");
-        repository.complete("completed", null, 10);
+        String partitioning = registered("MOV_ABERTO_2026.09.24.001.txt");
+        String retry = registered("MOV_FECHADO_2026.09.24.001.txt");
+        String failed = registered("MOV_SALDO_2026.09.24.001.txt");
+        String completed = registered("MOV_ULTIMA_2026.09.24.001.txt");
+        repository.failPartitioning(retry);
+        repository.fail(failed);
+        repository.complete(completed);
 
         assertThat(repository.findUnfinished()).extracting(ReceivedFileDocument::id)
-                .containsExactlyInAnyOrder("partitioning", "retry");
+                .containsExactlyInAnyOrder(partitioning, retry);
     }
 
-    private void age(String id) {
+    private String registered(String fileName) {
+        ReceivedFileDocument original = original(fileName);
+        repository.register(original);
+        return original.id();
+    }
+
+    private void attempts(String id, int attempts) {
         mongoTemplate.updateFirst(query(where(ReceivedFileFields.ID).is(id)),
-                new Update().set(ReceivedFileFields.audit(ReceivedFileFields.UPDATED_AT),
-                        Instant.now().minus(STALE_AFTER.multipliedBy(2))),
-                ReceivedFileDocument.COLLECTION);
+                new Update().set(ReceivedFileFields.ATTEMPTS, attempts), ReceivedFileDocument.COLLECTION);
     }
 
-    private static Instant staleBefore() {
-        return Instant.now().minus(STALE_AFTER);
-    }
-
-    private static <T> List<T> concurrently(int instances, Callable<T> action) throws Exception {
-        try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
-            List<Future<T>> futures = IntStream.range(0, instances).mapToObj(index -> executor.submit(action)).toList();
-            return futures.stream().map(OriginalFileRepositoryIntegrationTest::join).toList();
-        }
-    }
-
-    private static <T> T join(Future<T> future) {
-        try {
-            return future.get();
-        } catch (Exception e) {
-            throw new IllegalStateException(e);
-        }
-    }
-
-    private static ReceivedFileDocument original(String id) {
-        return ReceivedFileDocument.original(id, "MOV_ABERTO_2026.09.24.001.txt",
-                BlobLocation.received("entrada/MOV_ABERTO_2026.09.24.001.txt", "etag", 100), null, Instant.now());
+    private static ReceivedFileDocument original(String fileName) {
+        return ReceivedFileDocument.original(fileName,
+                BlobLocation.received("entrada/" + fileName, "etag", 100), null, Instant.now());
     }
 }

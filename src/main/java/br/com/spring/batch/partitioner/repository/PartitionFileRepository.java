@@ -58,8 +58,7 @@ public class PartitionFileRepository {
     public void completePublished(List<String> partitionIds, Instant publishedAt) {
         collection.updateAll(where(ReceivedFileFields.ID).in(partitionIds), new Update()
                 .set(ReceivedFileFields.STATUS, FileStatus.COMPLETED)
-                .set(PUBLISHED_AT, publishedAt)
-                .set(audit(ReceivedFileFields.COMPLETED_AT), publishedAt));
+                .set(PUBLISHED_AT, publishedAt));
     }
 
     private static Criteria ofParent(String parentFileId) {

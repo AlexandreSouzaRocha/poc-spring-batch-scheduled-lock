@@ -65,7 +65,7 @@ wait_healthy() {
 
 wait_idle() {
   until curl -fsS "$(partitioner_url)/files/summary" \
-      | python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(0 if not any(k in d for k in ("PARTITIONING","REPROCESSING","FAILED_PARTITIONING")) else 1)'; do
+      | python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(0 if not any(k in d for k in ("PARTITIONING","FAILED_PARTITIONING")) else 1)'; do
     sleep 3
   done
 }

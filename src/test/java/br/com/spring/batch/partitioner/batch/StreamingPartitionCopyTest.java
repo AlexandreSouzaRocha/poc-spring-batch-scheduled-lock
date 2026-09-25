@@ -4,7 +4,6 @@ import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
-import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -55,8 +54,7 @@ class StreamingPartitionCopyTest {
     }
 
     private static ProgressCounter counter(long totalBytes) {
-        PartitionSettings settings = new PartitionSettings(10, 3, 1, ConcurrencyControl.CLAIM,
-                Duration.ofSeconds(10), Duration.ofMinutes(2), 4, 0, false, 64);
+        PartitionSettings settings = new PartitionSettings(10, 3, 1, ConcurrencyControl.TYPE_LOCK, 4, 0, false, 64);
         AppProperties properties = new AppProperties(null, null, settings, null, null);
         return new PartitionProgressReporter(properties).track("file", 1, 1, totalBytes);
     }

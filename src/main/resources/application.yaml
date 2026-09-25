@@ -57,9 +57,7 @@ app:
     count: ${APP_PARTITION_COUNT:10}
     max-attempts: ${APP_PARTITION_MAX_ATTEMPTS:3}
     max-concurrent-types: ${APP_PARTITION_MAX_CONCURRENT_TYPES:1}
-    concurrency-control: ${APP_PARTITION_CONCURRENCY_CONTROL:CLAIM}
-    heartbeat-interval: ${APP_PARTITION_HEARTBEAT_INTERVAL:10s}
-    stale-after: ${APP_PARTITION_STALE_AFTER:2m}
+    concurrency-control: ${APP_PARTITION_CONCURRENCY_CONTROL:TYPE_LOCK}
     threads-per-partition: ${APP_PARTITION_THREADS_PER_PARTITION:4}
     progress-interval-seconds: ${APP_PARTITION_PROGRESS_INTERVAL_SECONDS:10}
     server-side-copy: ${APP_PARTITION_SERVER_SIDE_COPY:false}

@@ -51,7 +51,7 @@ class InboxFilesTest {
         InboxFiles inbox = new InboxFiles(List.of(listed)).including(List.of(alreadyListed, movedBeforeCompleting));
 
         assertThat(inbox.files()).containsExactly(listed, file("MOV_SALDO_2026.09.24.001.txt"));
-        assertThat(inbox.files().stream().map(FileClaimService::idOf))
+        assertThat(inbox.files().stream().map(FileIntakeService::idOf))
                 .containsExactly(alreadyListed.id(), movedBeforeCompleting.id());
     }
 
@@ -61,12 +61,12 @@ class InboxFilesTest {
         BlobFile sameNameOtherContent = new BlobFile("entrada/MOV_ABERTO_2026.09.24.001.txt", 200, "etag-2");
         BlobFile regenerated = new BlobFile("entrada/MOV_ABERTO_2026.09.24.002.txt", 100, "etag-1");
 
-        assertThat(FileClaimService.idOf(sameNameOtherContent)).isEqualTo(FileClaimService.idOf(original));
-        assertThat(FileClaimService.idOf(regenerated)).isNotEqualTo(FileClaimService.idOf(original));
+        assertThat(FileIntakeService.idOf(sameNameOtherContent)).isEqualTo(FileIntakeService.idOf(original));
+        assertThat(FileIntakeService.idOf(regenerated)).isNotEqualTo(FileIntakeService.idOf(original));
     }
 
     private static ReceivedFileDocument registered(BlobFile file) {
-        return ReceivedFileDocument.original(FileClaimService.idOf(file), file.fileName(),
+        return ReceivedFileDocument.original(file.fileName(),
                 BlobLocation.received(file.path(), file.etag(), file.sizeBytes()), null, Instant.now());
     }
 
