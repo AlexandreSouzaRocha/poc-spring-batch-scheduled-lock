@@ -159,3 +159,19 @@ Referência: 143.041 ms com 4 threads e bloco de leitura de 8 MB.
 
 A configuração recomendada fica **cercada**: em qualquer direção testada, ou não há ganho, ou o
 sistema quebra. Detalhes em [docs/LOAD-TESTS.md](../docs/LOAD-TESTS.md).
+
+## Regressão — lock por tipo e execução no JobRepository (2026-09-25)
+
+Verificação depois da volta ao ShedLock por tipo (`TYPE_LOCK`), da remoção dos dados de execução da
+`received_file_management` e da checagem de execução corrente no início de cada step. Configuração
+recomendada: 250MM, Azurite 3.35, streaming, 10 partições, 4 threads por partição, bloco de 8 MB, G1,
+OTEL on, 4 GB, 4 vCPUs, 2 instâncias. Relatório bruto em
+[load-test-20260925-190819.md](load-test-20260925-190819.md).
+
+| Volume | Geração | Particionamento | MB/s | Job | Pico mem | Kafka | Confiança |
+|---|---|---|---|---|---|---|---|
+| 250MM | 234 s | 146.023 ms | 246,54 | 146.798 ms | 3.367 MB | 10 | média |
+
+Confiança média: host na bateria (68%) e Docker Desktop **não** reiniciado (só os containers de
+outro projeto foram parados). O resultado fica 1,2% abaixo da bateria final (147.860 ms), dentro do
+ruído: as mudanças não têm custo mensurável.

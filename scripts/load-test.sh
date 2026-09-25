@@ -162,7 +162,7 @@ collect_result() {
   record_row "$size" "$lines" "$file_gb" "$generation_seconds" \
     "$(metric_field "$step" durationMs)" "$(metric_field "$step" mbPerSec)" "$(metric_field "$step" linesPerSec)" \
     "$(metric_field "$job" durationMs)" "$(metric_field "$job" mbPerSec)" \
-    "${partitions:--}" "${PARTITION_THREADS:-1}" "${attempts:--}" "$kafka_delta" \
+    "${partitions:--}" "${PARTITION_THREADS:-4}" "${attempts:--}" "$kafka_delta" \
     "$(peak_memory_mb)" "$(min_free_disk_gb)" "$status"
 }
 
@@ -190,7 +190,7 @@ write_header() {
     echo
     echo "Energia no inicio: $(power_state)"
     echo
-    echo "Particoes: ${PARTITION_COUNT:-10} · threads/particao: ${PARTITION_THREADS:-1} · instancias: ${PARTITIONER_INSTANCES:-2} · memoria: ${PARTITIONER_MEMORY:-2g} · CPUs: ${PARTITIONER_CPUS:-2} · azurite threads: ${AZURITE_THREADS:-16} · OTEL: ${OTEL_ENABLED:-true}"
+    echo "Particoes: ${PARTITION_COUNT:-10} · threads/particao: ${PARTITION_THREADS:-4} · instancias: ${PARTITIONER_INSTANCES:-2} · memoria: ${PARTITIONER_MEMORY:-4g} · CPUs: ${PARTITIONER_CPUS:-4} · azurite threads: ${AZURITE_THREADS:-16} · OTEL: ${OTEL_ENABLED:-true}"
     echo
     echo "| tamanho | linhas | arquivo GB | geracao s | particao ms | particao MB/s | linhas/s | job ms | job MB/s | particoes | threads | tentativas | kafka | pico mem MB | disco livre min GB | status |"
     echo "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"
