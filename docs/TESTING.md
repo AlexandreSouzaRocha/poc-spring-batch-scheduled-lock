@@ -16,7 +16,7 @@ make test
 | `AzureBlockUploadTest` | Blocos de tamanho fixo em ordem e nenhum commit sem `commit()` |
 | `ChaosRuleTest` | Regras de injeção de falha por tentativa e partição |
 | `ErrorSummaryTest` | Resumo de erro sem stack trace |
-| `OriginalFileRepositoryIntegrationTest` | MongoDB real (Testcontainers): fencing (a retomada revoga o dono anterior, que não renova heartbeat nem muda status; só uma execução vira dona); insert duplicado gera `DuplicateKeyException`; arquivo ativo não é reservado; `FAILED_PARTITIONING` e em andamento parado viram `REPROCESSING`; 8 reservas simultâneas com um único vencedor; tentativas esgotadas viram `FAILED`; `FAILED` só volta via requeue; heartbeat mantém o arquivo vivo e não toca arquivo encerrado |
+| `OriginalFileRepositoryIntegrationTest` | MongoDB real (Testcontainers): documento com `attempts` na raiz e sem dados de execução; `_id` derivado do nome; nome repetido gera `DuplicateKeyException`; `PARTITIONING` interrompido e `FAILED_PARTITIONING` retomados com uma tentativa a mais; tentativas esgotadas viram `FAILED`; `FAILED` só volta via requeue; `COMPLETED` nunca é retomado |
 | `ConfigurableMongoLockProviderIntegrationTest` | MongoDB real (Testcontainers): exclusão mútua com nome em `_id` e em campo customizado, collection e campos customizados, `lockAtLeastFor`, extensão só pelo dono e lock expirado assumido por outra instância |
 
 ## Teste integrado ponta a ponta
@@ -59,8 +59,8 @@ make chaos-test SCENARIO=all          # ou partition-fail | publish-fail | inval
 LINES=2000000 ./scripts/chaos-test.sh kill-owner
 ```
 
-A falha é injetada nas duas instâncias via `PUT /chaos`, porque não se sabe qual delas vai reservar
-o arquivo. Um arquivo em `FAILED` não bloqueia os demais, então os cenários rodam encadeados sem
+A falha é injetada nas duas instâncias via `PUT /chaos`, porque não se sabe qual delas vai obter o
+lock do tipo. Um arquivo em `FAILED` não bloqueia os demais, então os cenários rodam encadeados sem
 limpeza entre eles.
 
 | Cenário | Falha injetada | Validações |
@@ -69,8 +69,8 @@ limpeza entre eles.
 | `publish-fail` | A publicação no Kafka falha na 1ª tentativa | `COMPLETED` na 2ª tentativa; cleanup **pulado**; cada partição gravada **uma única vez**; original movido uma única vez (resume a partir do `publishPartitionsStep`) |
 | `slow-io` | 90 s de atraso no worker (`PARTITION`), no `MOVE` e no `PUBLISH`, com o Mongo limitado a 60 s de transação | `COMPLETED` na 1ª tentativa; nenhum `NoSuchTransaction`; partições íntegras e publicadas |
 | `invalid-file` | Header com indicador `X` | `FAILED` sem retentativa; arquivo mantido em `entrada/`; nenhuma partição e nenhuma mensagem |
-| `zombie-owner` | Uma partição fica parada por 20 s e a instância que processa o arquivo é **congelada** com `docker pause` (não morre) até a outra concluir | A outra instância retoma e conclui; ao ser descongelada, a antiga registra `file.ownership.lost`, não conclui o job, não altera o status e não publica no Kafka; partições íntegras |
-| `kill-owner` | Uma partição fica parada por 300 s e a instância que processa o arquivo recebe `docker kill` | Sem heartbeat, o `updated_at` envelhece; depois de `stale-after` a outra instância reserva o arquivo em `REPROCESSING` (`file.reprocess`), marca a execução órfã como `FAILED` (`execution.recover`), refaz o particionamento e termina `COMPLETED` |
+| `zombie-owner` | Uma partição fica parada por 20 s e a instância que processa o arquivo é **congelada** com `docker pause` (não morre) até a outra concluir | O lock do tipo expira e a outra instância retoma e conclui; ao ser descongelada, a antiga não é mais a execução corrente no JobRepository: registra `file.ownership.lost`, não conclui o job, não altera o status e não publica no Kafka; partições íntegras |
+| `kill-owner` | Uma partição fica parada por 300 s e a instância que processa o arquivo recebe `docker kill` | O lock do tipo expira em até `lock-at-most-for`; a outra instância o adquire, encontra o arquivo em `PARTITIONING` e o retoma (`file.resume`), marca a execução órfã como `FAILED` (`execution.recover`), refaz o particionamento e termina `COMPLETED` |
 
 ### Manualmente
 

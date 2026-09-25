@@ -120,31 +120,29 @@ make prometheus           # timers expostos no /actuator/prometheus
 
 Endpoint: `GET /actuator/prometheus` em cada particionador (`:8081` e `:8082`).
 
-## Reserva e retomada de arquivos
+## Registro e retomada de arquivos
 
-Eventos do ciclo e da reserva (`context=file-claim` e `context=file-partitioning`), em ordem de
-aparição:
+Eventos do ciclo (`context=file-intake` e `context=file-partitioning`), em ordem de aparição:
 
 | `operation` | Nível | Quando |
 |---|---|---|
 | `poll.finish` | INFO | Fim da listagem: `listed` (em `entrada/`), `unfinished` (não concluídos no Mongo) e `files` (total do ciclo) |
 | `inbox.dispatch` / `inbox.finish` | INFO | Início e fim do ciclo, com `concurrencyControl` |
-| `file.register` | INFO | Arquivo novo inserido como `PARTITIONING` — esta instância ganhou a reserva |
-| `file.concurrent` | WARN | `DuplicateKeyException` no insert do arquivo ou na criação da `JobInstance`: outra instância já está com ele; o ciclo segue para o próximo |
-| `file.reprocess` | WARN | Arquivo `FAILED_PARTITIONING` ou em andamento sem heartbeat assumido em `REPROCESSING` (`previousStatus`, `attempt`, `updatedAt`, `lastError`) |
+| `file.register` | INFO | Arquivo novo inserido como `PARTITIONING` |
+| `file.resume` | WARN | Arquivo `PARTITIONING` interrompido ou `FAILED_PARTITIONING` retomado pelo dono do lock do tipo (`previousStatus`, `attempt`) |
+| `file.concurrent` | WARN | `DuplicateKeyException` no insert do arquivo ou na criação da `JobInstance`; o ciclo segue para o próximo |
 | `execution.recover` | WARN | Execução presa em `STARTED` marcada como `FAILED` para o restart |
-| `file.fail` | WARN / ERROR | WARN com `status=FAILED_PARTITIONING` (vai ser retomado); ERROR com `status=FAILED` (aguarda tratativa manual) |
-| `file.heartbeat` | WARN | Falha ao renovar o `updated_at`; tenta de novo no próximo intervalo |
-| `file.ownership.lost` | WARN | Esta execução perdeu a posse do arquivo para outra (voltou de um congelamento); o heartbeat para, o job é interrompido no próximo step e o status não é alterado |
+| `file.fail` | WARN / ERROR | WARN com `status=FAILED_PARTITIONING` (vai ser retomado); ERROR com `status=FAILED` (aguarda tratativa manual). O erro vai no `data`, só no log: na collection ele não é gravado — está no JobRepository |
+| `file.ownership.lost` | WARN | A execução deixou de ser a corrente do arquivo no JobRepository (voltou de um congelamento); o job é interrompido e o status não é alterado |
 | `file.duplicate` | WARN | Arquivo com nome já `COMPLETED` reapareceu em `entrada/`; ignorado a cada ciclo até ser removido |
-| `file.skip` | DEBUG | Arquivo em andamento ativo, `FAILED` ou `COMPLETED` pulado no ciclo |
+| `file.skip` | DEBUG | Arquivo `FAILED` pulado no ciclo |
 
-Para acompanhar um arquivo com falha definitiva: `grep "file.fail.*status=FAILED"` e, depois da
-correção, `POST /files/{id}/requeue`.
+Os dados de cada execução (início, fim, duração, status, `exit_description`) estão em
+`batch_job_execution`, com o nome do arquivo no parâmetro `fileName`, e a última aparece em
+`GET /files/{id}` no campo `lastExecution`. Para acompanhar um arquivo com falha definitiva:
+`grep "file.fail.*status=FAILED"` e, depois da correção, `POST /files/{id}/requeue`.
 
-## Lock (modos `TYPE_LOCK` e `GLOBAL_LOCK`)
-
-No modo padrão `CLAIM` não há lock, e a auditoria abaixo não tem ciclos para mostrar.
+## Lock
 
 ```bash
 make locks        # documento de cada lock: dono (locked_by) e validade (lock_until)
