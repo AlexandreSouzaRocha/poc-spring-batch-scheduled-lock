@@ -42,7 +42,7 @@ class OriginalFileRepositoryIntegrationTest {
         mongoTemplate = new MongoTemplate(new SimpleMongoClientDatabaseFactory(
                 MongoClients.create(MONGO.getConnectionString()), "intake_test"));
         mongoTemplate.dropCollection(ReceivedFileDocument.COLLECTION);
-        repository = new OriginalFileRepository(new ReceivedFileCollection(mongoTemplate));
+        repository = new OriginalFileRepository(mongoTemplate);
     }
 
     @Test

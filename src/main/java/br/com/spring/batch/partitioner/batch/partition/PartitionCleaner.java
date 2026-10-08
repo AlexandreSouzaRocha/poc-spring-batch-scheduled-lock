@@ -24,21 +24,10 @@ public class PartitionCleaner {
         String prefix = paths.partitionPrefix(original);
         int deletedBlobs = storage.deleteByPrefix(prefix);
         long deletedDocuments = repository.deleteByParent(original.id());
-        return new CleanupResult(prefix, deletedBlobs, deletedDocuments, false);
+        return new CleanupResult(prefix, deletedBlobs, deletedDocuments);
     }
 
-    public CleanupResult cleanIfUnpublished(ReceivedFileDocument original) {
-        if (!original.hasMovement() || repository.anyPublished(original.id())) {
-            return CleanupResult.notApplicable();
-        }
-        return clean(original);
-    }
-
-    public record CleanupResult(String prefix, int deletedBlobs, long deletedDocuments, boolean skipped) {
-
-        static CleanupResult notApplicable() {
-            return new CleanupResult(null, 0, 0, true);
-        }
+    public record CleanupResult(String prefix, int deletedBlobs, long deletedDocuments) {
 
         public boolean removedSomething() {
             return deletedBlobs > 0 || deletedDocuments > 0;
