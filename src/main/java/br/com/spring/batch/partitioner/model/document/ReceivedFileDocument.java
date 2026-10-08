@@ -11,8 +11,10 @@ import br.com.spring.batch.partitioner.model.layout.FileLayout;
 import br.com.spring.batch.partitioner.model.partition.PartitionRange;
 
 import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
 
+@Document(collection = ReceivedFileDocument.COLLECTION)
 public record ReceivedFileDocument(
         @Id String id,
         @Field(ReceivedFileFields.ROLE) FileRole role,

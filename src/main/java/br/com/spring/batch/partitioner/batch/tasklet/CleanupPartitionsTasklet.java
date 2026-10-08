@@ -46,7 +46,7 @@ public class CleanupPartitionsTasklet implements Tasklet {
         }
         String prefix = paths.partitionPrefix(original);
         int deletedBlobs = storage.deleteByPrefix(prefix);
-        long deletedDocuments = partitions.deleteByParent(original.id());
+        long deletedDocuments = partitions.deleteByParentFileId(original.id());
         boolean rollback = deletedBlobs > 0 || deletedDocuments > 0;
         log.at(rollback ? Level.WARN : Level.INFO, "partition.cleanup")
                 .field("fileId", original.id()).field("attempt", original.attempts())

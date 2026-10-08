@@ -19,6 +19,8 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.SimpleMongoClientDatabaseFactory;
 import org.springframework.data.mongodb.core.query.Update;
+import org.springframework.data.mongodb.repository.support.MongoRepositoryFactory;
+import org.springframework.data.repository.core.support.RepositoryComposition.RepositoryFragments;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -42,13 +44,14 @@ class OriginalFileRepositoryIntegrationTest {
         mongoTemplate = new MongoTemplate(new SimpleMongoClientDatabaseFactory(
                 MongoClients.create(MONGO.getConnectionString()), "intake_test"));
         mongoTemplate.dropCollection(ReceivedFileDocument.COLLECTION);
-        repository = new OriginalFileRepository(mongoTemplate);
+        repository = new MongoRepositoryFactory(mongoTemplate).getRepository(OriginalFileRepository.class,
+                RepositoryFragments.just(new OriginalFileRepositoryCustomImpl(mongoTemplate)));
     }
 
     @Test
     void registersWithAttemptsAtRootAndWithoutExecutionData() {
         ReceivedFileDocument original = original(FILE_NAME);
-        repository.register(original);
+        repository.insert(original);
 
         Document stored = mongoTemplate.findById(original.id(), Document.class, ReceivedFileDocument.COLLECTION);
 
@@ -65,9 +68,9 @@ class OriginalFileRepositoryIntegrationTest {
 
     @Test
     void secondRegistrationOfSameFileNameFailsWithDuplicateKey() {
-        repository.register(original(FILE_NAME));
+        repository.insert(original(FILE_NAME));
 
-        assertThatThrownBy(() -> repository.register(original(FILE_NAME)))
+        assertThatThrownBy(() -> repository.insert(original(FILE_NAME)))
                 .isInstanceOf(DuplicateKeyException.class);
     }
 
@@ -143,7 +146,7 @@ class OriginalFileRepositoryIntegrationTest {
 
     private String registered(String fileName) {
         ReceivedFileDocument original = original(fileName);
-        repository.register(original);
+        repository.insert(original);
         return original.id();
     }
 

@@ -36,7 +36,7 @@ public class FileVerificationService {
     }
 
     private VerificationReport verify(ReceivedFileDocument original) {
-        List<ReceivedFileDocument> documents = partitions.findByParent(original.id());
+        List<ReceivedFileDocument> documents = partitions.findByParentFileIdOrderByPartitioningIndexAsc(original.id());
         Map<String, BlobFile> partitionBlobs = blobs.partitionBlobs(original);
         List<PartitionCheck> checks = documents.stream()
                 .map(partition -> blobs.check(original, partition, partitionBlobs.get(partition.currentPath())))

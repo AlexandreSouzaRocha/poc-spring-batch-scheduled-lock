@@ -72,7 +72,7 @@ public class FileIntakeService {
         ReceivedFileDocument original = ReceivedFileDocument.original(file.fileName(),
                 BlobLocation.received(file.path(), file.etag(), file.sizeBytes()), movementOf(file), Instant.now());
         try {
-            repository.register(original);
+            repository.insert(original);
         } catch (DuplicateKeyException e) {
             log.warn("file.concurrent").field("fileId", original.id()).field("fileName", original.fileName())
                     .error(e).log("arquivo já registrado por outra instância; seguindo para o próximo");

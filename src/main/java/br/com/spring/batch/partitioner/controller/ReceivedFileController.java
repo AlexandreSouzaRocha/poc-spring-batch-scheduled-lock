@@ -64,7 +64,7 @@ public class ReceivedFileController {
     public ResponseEntity<FileDetail> detail(@PathVariable String id) {
         return originals.findById(id)
                 .map(file -> ResponseEntity.ok(new FileDetail(file, executions.summary(file.fileName()).orElse(null),
-                        partitions.findByParent(id))))
+                        partitions.findByParentFileIdOrderByPartitioningIndexAsc(id))))
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 

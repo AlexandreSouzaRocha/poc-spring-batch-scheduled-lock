@@ -35,7 +35,8 @@ public class PublishPartitionsTasklet implements Tasklet {
     @Override
     public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) throws Exception {
         ReceivedFileDocument original = support.load(contribution, ChaosPoint.PUBLISH);
-        List<ReceivedFileDocument> pending = partitions.findUnpublished(original.id());
+        List<ReceivedFileDocument> pending =
+                partitions.findByParentFileIdAndAuditPublishedAtIsNullOrderByPartitioningIndexAsc(original.id());
         publisher.publishAndAwait(pending);
         partitions.completePublished(pending.stream().map(ReceivedFileDocument::id).toList(), Instant.now());
         log.info("partition.publish").field("fileId", original.id()).field("topic", publisher.topic())
