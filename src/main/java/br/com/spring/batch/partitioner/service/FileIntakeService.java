@@ -1,7 +1,11 @@
 package br.com.spring.batch.partitioner.service;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import br.com.spring.batch.partitioner.config.properties.AppProperties.PartitionSettings;
 import br.com.spring.batch.partitioner.model.document.BlobLocation;
@@ -13,6 +17,7 @@ import br.com.spring.batch.partitioner.model.layout.FileLayout;
 import br.com.spring.batch.partitioner.model.layout.MovementFileName;
 import br.com.spring.batch.partitioner.repository.OriginalFileRepository;
 import br.com.spring.batch.partitioner.storage.BlobFile;
+import br.com.spring.batch.partitioner.storage.BlobPaths;
 import br.com.spring.batch.partitioner.storage.BlobStorage;
 import br.com.spring.batch.partitioner.support.log.StructuredLogger;
 
@@ -26,19 +31,32 @@ public class FileIntakeService {
 
     private final OriginalFileRepository repository;
     private final BlobStorage storage;
+    private final BlobPaths paths;
     private final FileLayout layout;
     private final PartitionSettings settings;
 
-    public FileIntakeService(OriginalFileRepository repository, BlobStorage storage, FileLayout layout,
-                             PartitionSettings settings) {
+    public FileIntakeService(OriginalFileRepository repository, BlobStorage storage, BlobPaths paths,
+                             FileLayout layout, PartitionSettings settings) {
         this.repository = repository;
         this.storage = storage;
+        this.paths = paths;
         this.layout = layout;
         this.settings = settings;
     }
 
+    public List<BlobFile> pendingFiles() {
+        long start = System.currentTimeMillis();
+        List<BlobFile> listed = storage.list(paths.inboxPrefix()).stream().filter(BlobFile::isDataFile).toList();
+        List<ReceivedFileDocument> unfinished = repository.findUnfinished();
+        List<BlobFile> pending = withUnfinished(listed, unfinished);
+        log.info("poll.finish").field("listed", listed.size()).field("unfinished", unfinished.size())
+                .field("files", pending.size()).field("durationMs", System.currentTimeMillis() - start)
+                .data("prefix", paths.inboxPrefix()).log("polling do blob concluído");
+        return pending;
+    }
+
     public Optional<ReceivedFileDocument> take(BlobFile file) {
-        return repository.findById(idOf(file))
+        return repository.findById(file.fileId())
                 .map(existing -> resume(existing, file))
                 .orElseGet(() -> register(file));
     }
@@ -100,13 +118,17 @@ public class FileIntakeService {
         try {
             return MovementInfo.from(FileHeader.parse(storage.read(file.path(), layout.headerRange()), layout));
         } catch (RuntimeException e) {
-            log.warn("file.classify").field("fileId", idOf(file)).field("fileName", file.fileName()).error(e)
+            log.warn("file.classify").field("fileId", file.fileId()).field("fileName", file.fileName()).error(e)
                     .log("nome sem data de movimento e header ilegível; a validação do job decide");
             return null;
         }
     }
 
-    static String idOf(BlobFile file) {
-        return ReceivedFileDocument.idOf(file.fileName());
+    static List<BlobFile> withUnfinished(List<BlobFile> listed, List<ReceivedFileDocument> unfinished) {
+        Set<String> listedIds = listed.stream().map(BlobFile::fileId).collect(Collectors.toSet());
+        Stream<BlobFile> leftTheInbox = unfinished.stream()
+                .filter(file -> !listedIds.contains(file.id()))
+                .map(file -> new BlobFile(file.blob().sourcePath(), file.sizeBytes(), file.blob().etag()));
+        return Stream.concat(listed.stream(), leftTheInbox).toList();
     }
 }

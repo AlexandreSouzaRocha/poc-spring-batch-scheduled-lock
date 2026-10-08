@@ -115,8 +115,7 @@ class ConfigurableMongoLockProviderIntegrationTest {
 
     private ConfigurableMongoLockProvider provider(FieldNames fields, String owner) {
         createUniqueNameIndex(fields);
-        MongoLockStore store = new MongoLockStore(mongoTemplate, new ShedLockProperties(COLLECTION, owner, fields));
-        return new ConfigurableMongoLockProvider(store, owner);
+        return new ConfigurableMongoLockProvider(mongoTemplate, new ShedLockProperties(COLLECTION, owner, fields));
     }
 
     private void createUniqueNameIndex(FieldNames fields) {

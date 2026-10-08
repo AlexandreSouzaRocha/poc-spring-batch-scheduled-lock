@@ -3,7 +3,6 @@ package br.com.spring.batch.partitioner.config;
 import br.com.spring.batch.partitioner.config.properties.ShedLockProperties;
 import br.com.spring.batch.partitioner.lock.ConfigurableMongoLockProvider;
 import br.com.spring.batch.partitioner.lock.LockKeepAliveExecutor;
-import br.com.spring.batch.partitioner.lock.MongoLockStore;
 import com.mongodb.ReadPreference;
 import com.mongodb.WriteConcern;
 import net.javacrumbs.shedlock.core.DefaultLockingTaskExecutor;
@@ -23,17 +22,12 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 public class ShedLockConfig {
 
     @Bean
-    public MongoLockStore mongoLockStore(MongoDatabaseFactory mongoDatabaseFactory, ShedLockProperties properties) {
+    public ConfigurableMongoLockProvider configurableMongoLockProvider(MongoDatabaseFactory mongoDatabaseFactory,
+                                                                       ShedLockProperties properties) {
         MongoTemplate lockTemplate = new MongoTemplate(mongoDatabaseFactory);
         lockTemplate.setWriteConcern(WriteConcern.MAJORITY);
         lockTemplate.setReadPreference(ReadPreference.primary());
-        return new MongoLockStore(lockTemplate, properties);
-    }
-
-    @Bean
-    public ConfigurableMongoLockProvider configurableMongoLockProvider(MongoLockStore mongoLockStore,
-                                                                       ShedLockProperties properties) {
-        return new ConfigurableMongoLockProvider(mongoLockStore, properties.lockedBy());
+        return new ConfigurableMongoLockProvider(lockTemplate, properties);
     }
 
     @Bean

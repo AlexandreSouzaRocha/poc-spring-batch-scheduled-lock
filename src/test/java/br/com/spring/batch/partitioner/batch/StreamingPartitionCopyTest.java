@@ -13,7 +13,7 @@ import br.com.spring.batch.partitioner.batch.progress.ProgressCounter;
 import br.com.spring.batch.partitioner.config.properties.AppProperties;
 import br.com.spring.batch.partitioner.config.properties.AppProperties.PartitionSettings;
 import br.com.spring.batch.partitioner.model.partition.ByteRange;
-import br.com.spring.batch.partitioner.service.dispatch.ConcurrencyControl;
+import br.com.spring.batch.partitioner.config.properties.AppProperties.ConcurrencyControl;
 import br.com.spring.batch.partitioner.storage.BlobStorage;
 import br.com.spring.batch.partitioner.storage.BlockList;
 import org.junit.jupiter.api.DisplayName;

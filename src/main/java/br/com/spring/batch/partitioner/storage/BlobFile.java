@@ -1,5 +1,7 @@
 package br.com.spring.batch.partitioner.storage;
 
+import br.com.spring.batch.partitioner.model.document.ReceivedFileDocument;
+
 public record BlobFile(String path, long sizeBytes, String etag) {
 
     public boolean isDataFile() {
@@ -8,5 +10,9 @@ public record BlobFile(String path, long sizeBytes, String etag) {
 
     public String fileName() {
         return BlobPaths.fileNameOf(path);
+    }
+
+    public String fileId() {
+        return ReceivedFileDocument.idOf(fileName());
     }
 }

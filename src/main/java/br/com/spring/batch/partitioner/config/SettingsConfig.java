@@ -5,15 +5,7 @@ import br.com.spring.batch.partitioner.config.properties.AppProperties.BlobSetti
 import br.com.spring.batch.partitioner.config.properties.AppProperties.FolderSettings;
 import br.com.spring.batch.partitioner.config.properties.AppProperties.KafkaSettings;
 import br.com.spring.batch.partitioner.config.properties.AppProperties.PartitionSettings;
-import br.com.spring.batch.partitioner.config.properties.SchedulerProperties;
-import br.com.spring.batch.partitioner.lock.ProcessingLock;
 import br.com.spring.batch.partitioner.model.layout.FileLayout;
-import br.com.spring.batch.partitioner.service.FilePartitionLauncher;
-import br.com.spring.batch.partitioner.service.dispatch.ConcurrentDispatch;
-import br.com.spring.batch.partitioner.service.dispatch.InboxDispatch;
-import br.com.spring.batch.partitioner.service.dispatch.SequentialDispatch;
-
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -44,20 +36,5 @@ public class SettingsConfig {
     @Bean
     public FileLayout fileLayout(AppProperties properties) {
         return properties.file().layout();
-    }
-
-    @Bean
-    @ConditionalOnProperty(prefix = "app.partition", name = "concurrency-control", havingValue = "TYPE_LOCK",
-            matchIfMissing = true)
-    public InboxDispatch typeLockDispatch(FilePartitionLauncher launcher, ProcessingLock processingLock,
-            SchedulerProperties scheduler, PartitionSettings settings) {
-        return new ConcurrentDispatch(launcher, processingLock, scheduler, settings.maxConcurrentTypes());
-    }
-
-    @Bean
-    @ConditionalOnProperty(prefix = "app.partition", name = "concurrency-control", havingValue = "GLOBAL_LOCK")
-    public InboxDispatch globalLockDispatch(FilePartitionLauncher launcher, ProcessingLock processingLock,
-            SchedulerProperties scheduler) {
-        return new SequentialDispatch(launcher, processingLock, scheduler);
     }
 }

@@ -4,7 +4,6 @@ import java.time.Duration;
 
 import br.com.spring.batch.partitioner.model.layout.FileLayout;
 import br.com.spring.batch.partitioner.model.layout.LineSeparator;
-import br.com.spring.batch.partitioner.service.dispatch.ConcurrencyControl;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
@@ -101,6 +100,11 @@ public record AppProperties(
         public int serverSideBlockSizeBytes() {
             return serverSideBlockSizeMb * MEGABYTE;
         }
+    }
+
+    public enum ConcurrencyControl {
+        TYPE_LOCK,
+        GLOBAL_LOCK
     }
 
     public record KafkaSettings(

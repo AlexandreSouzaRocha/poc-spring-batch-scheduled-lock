@@ -26,7 +26,15 @@ public class ProcessingLock {
         this.owner = shedLock.lockedBy();
     }
 
-    public boolean tryRun(String lockName, Runnable action) {
+    public boolean tryRunGlobal(Runnable action) {
+        return tryRun(scheduler.lockName(), action);
+    }
+
+    public boolean tryRunForType(String movementGroup, Runnable action) {
+        return tryRun(scheduler.lockNameFor(movementGroup), action);
+    }
+
+    private boolean tryRun(String lockName, Runnable action) {
         long start = System.currentTimeMillis();
         try {
             return reportOutcome(lockName,
