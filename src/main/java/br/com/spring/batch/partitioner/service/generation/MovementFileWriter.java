@@ -10,8 +10,8 @@ import br.com.spring.batch.partitioner.batch.metrics.Throughput;
 import br.com.spring.batch.partitioner.model.layout.DetailRecordBuilder;
 import br.com.spring.batch.partitioner.model.layout.FileHeader;
 import br.com.spring.batch.partitioner.storage.BlobPaths;
-import br.com.spring.batch.partitioner.storage.BlobUpload;
-import br.com.spring.batch.partitioner.storage.BlobWriter;
+import br.com.spring.batch.partitioner.storage.BlobStorage;
+import br.com.spring.batch.partitioner.storage.BlockOutputStream;
 import br.com.spring.batch.partitioner.support.log.StructuredLogger;
 
 import org.springframework.context.annotation.Profile;
@@ -23,11 +23,11 @@ public class MovementFileWriter {
 
     private static final StructuredLogger log = StructuredLogger.of(MovementFileWriter.class, "generator");
 
-    private final BlobWriter writer;
+    private final BlobStorage storage;
     private final BlobPaths paths;
 
-    public MovementFileWriter(BlobWriter writer, BlobPaths paths) {
-        this.writer = writer;
+    public MovementFileWriter(BlobStorage storage, BlobPaths paths) {
+        this.storage = storage;
         this.paths = paths;
     }
 
@@ -51,11 +51,10 @@ public class MovementFileWriter {
 
     private void writeContent(String path, GenerationRequest request) {
         DetailRecordBuilder records = new DetailRecordBuilder(request.header().movementDateText(), request.layout());
-        try (BlobUpload upload = writer.open(path)) {
-            OutputStream output = upload.output();
+        try (BlockOutputStream output = storage.openOutput(path)) {
             output.write(request.headerLineBytes());
             writeRecords(output, records, request.lines());
-            upload.commit();
+            output.commit();
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

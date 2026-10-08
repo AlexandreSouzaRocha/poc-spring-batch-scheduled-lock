@@ -1,31 +1,22 @@
-package br.com.spring.batch.partitioner.storage.azure;
+package br.com.spring.batch.partitioner.storage;
 
 import java.io.ByteArrayInputStream;
 import java.io.OutputStream;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.List;
 
-import br.com.spring.batch.partitioner.storage.BlobUpload;
 import com.azure.storage.blob.specialized.BlockBlobClient;
 
-public class AzureBlockUpload extends OutputStream implements BlobUpload {
+public class BlockOutputStream extends OutputStream {
 
-    private static final String BLOCK_ID_FORMAT = "%010d";
-
-    private final StagedBlocks blocks;
+    private final BlockBlobClient blob;
+    private final List<String> stagedIds = new ArrayList<>();
     private final byte[] buffer;
     private int position;
 
-    public AzureBlockUpload(BlockBlobClient blob, int blockSizeBytes) {
-        this.blocks = new StagedBlocks(blob, new ArrayList<>());
+    public BlockOutputStream(BlockBlobClient blob, int blockSizeBytes) {
+        this.blob = blob;
         this.buffer = new byte[blockSizeBytes];
-    }
-
-    @Override
-    public OutputStream output() {
-        return this;
     }
 
     @Override
@@ -46,10 +37,9 @@ public class AzureBlockUpload extends OutputStream implements BlobUpload {
         }
     }
 
-    @Override
     public void commit() {
         stagePending();
-        blocks.commit();
+        blob.commitBlockList(stagedIds, true);
     }
 
     @Override
@@ -67,21 +57,9 @@ public class AzureBlockUpload extends OutputStream implements BlobUpload {
         if (position == 0) {
             return;
         }
-        blocks.stage(buffer, position);
+        String id = BlockList.blockId(stagedIds.size());
+        blob.stageBlock(id, new ByteArrayInputStream(buffer, 0, position), position);
+        stagedIds.add(id);
         position = 0;
-    }
-
-    private record StagedBlocks(BlockBlobClient blob, List<String> ids) {
-
-        void stage(byte[] data, int length) {
-            String id = Base64.getEncoder().encodeToString(
-                    String.format(BLOCK_ID_FORMAT, ids.size()).getBytes(StandardCharsets.US_ASCII));
-            blob.stageBlock(id, new ByteArrayInputStream(data, 0, length), length);
-            ids.add(id);
-        }
-
-        void commit() {
-            blob.commitBlockList(ids, true);
-        }
     }
 }

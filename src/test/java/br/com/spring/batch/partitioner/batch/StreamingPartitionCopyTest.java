@@ -1,11 +1,11 @@
 package br.com.spring.batch.partitioner.batch;
 
 import java.io.ByteArrayInputStream;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.IntStream;
 
 import br.com.spring.batch.partitioner.batch.partition.StreamingPartitionCopy;
 import br.com.spring.batch.partitioner.batch.progress.PartitionProgressReporter;
@@ -14,15 +14,21 @@ import br.com.spring.batch.partitioner.config.properties.AppProperties;
 import br.com.spring.batch.partitioner.config.properties.AppProperties.PartitionSettings;
 import br.com.spring.batch.partitioner.model.partition.ByteRange;
 import br.com.spring.batch.partitioner.service.dispatch.ConcurrencyControl;
-import br.com.spring.batch.partitioner.storage.BlobReader;
-import br.com.spring.batch.partitioner.storage.BlobUpload;
-import br.com.spring.batch.partitioner.storage.BlobWriter;
-import br.com.spring.batch.partitioner.storage.BlockUpload;
+import br.com.spring.batch.partitioner.storage.BlobStorage;
+import br.com.spring.batch.partitioner.storage.BlockList;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.ArgumentCaptor;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class StreamingPartitionCopyTest {
 
@@ -30,20 +36,44 @@ class StreamingPartitionCopyTest {
     private static final byte[] HEADER = "H2026-09-18ABERTO \n".getBytes(StandardCharsets.UTF_8);
 
     private final byte[] source = sourceBytes(5000);
-    private final RecordingBlockUpload upload = new RecordingBlockUpload();
+    private final Map<Integer, byte[]> stagedBlocks = new ConcurrentHashMap<>();
+    private final BlobStorage storage = mock(BlobStorage.class);
+    private final BlockList blocks = mock(BlockList.class);
 
     @ParameterizedTest(name = "{0} thread(s) por particao")
     @ValueSource(ints = {1, 2, 4, 8})
     @DisplayName("o arquivo final e o header seguido da faixa de bytes, qualquer que seja o paralelismo")
     void writesSameContentRegardlessOfThreads(int threads) {
         ByteRange range = new ByteRange(1000, 4200);
-        StreamingPartitionCopy transfer = new StreamingPartitionCopy(new ArrayBlobReader(source), new RecordingBlobWriter(upload),
-                BLOCK_SIZE, threads);
+        givenSourceAndRecordedBlocks();
+        StreamingPartitionCopy transfer = new StreamingPartitionCopy(storage, BLOCK_SIZE, threads);
 
         long copied = transfer.copy("origem.txt", range, "destino.txt", HEADER, counter(range.length()));
 
         assertThat(copied).isEqualTo(range.length());
-        assertThat(upload.committed()).isEqualTo(expected(range));
+        assertThat(committed()).isEqualTo(expected(range));
+    }
+
+    private void givenSourceAndRecordedBlocks() {
+        when(storage.openStream(eq("origem.txt"), any(ByteRange.class))).thenAnswer(invocation -> {
+            ByteRange range = invocation.getArgument(1);
+            return new ByteArrayInputStream(source, (int) range.start(), (int) range.length());
+        });
+        when(storage.openBlockList("destino.txt")).thenReturn(blocks);
+        doAnswer(invocation -> {
+            byte[] data = invocation.getArgument(1);
+            int length = invocation.getArgument(2);
+            stagedBlocks.put(invocation.getArgument(0), Arrays.copyOf(data, length));
+            return null;
+        }).when(blocks).stage(anyInt(), any(byte[].class), anyInt());
+    }
+
+    private byte[] committed() {
+        ArgumentCaptor<Integer> blockCount = ArgumentCaptor.forClass(Integer.class);
+        verify(blocks).commit(blockCount.capture());
+        return IntStream.range(0, blockCount.getValue())
+                .mapToObj(stagedBlocks::get)
+                .reduce(new byte[0], StreamingPartitionCopyTest::concat);
     }
 
     private byte[] expected(ByteRange range) {
@@ -67,79 +97,10 @@ class StreamingPartitionCopyTest {
         return bytes;
     }
 
-    private record ArrayBlobReader(byte[] source) implements BlobReader {
-
-        @Override
-        public byte[] read(String path, ByteRange range) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public InputStream openStream(String path, ByteRange range) {
-            return new ByteArrayInputStream(source, (int) range.start(), (int) range.length());
-        }
-
-        @Override
-        public long copy(String path, ByteRange range, OutputStream target) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public void copyAll(String path, OutputStream target) {
-            throw new UnsupportedOperationException();
-        }
-    }
-
-    private record RecordingBlobWriter(BlockUpload upload) implements BlobWriter {
-
-        @Override
-        public BlobUpload open(String path) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public BlockUpload openBlocks(String path) {
-            return upload;
-        }
-    }
-
-    private static final class RecordingBlockUpload implements BlockUpload {
-
-        private final Map<Integer, byte[]> blocks = new ConcurrentHashMap<>();
-        private int committedBlocks;
-
-        @Override
-        public void stage(int blockIndex, byte[] data, int length) {
-            byte[] copy = new byte[length];
-            System.arraycopy(data, 0, copy, 0, length);
-            blocks.put(blockIndex, copy);
-        }
-
-        @Override
-        public void stageFromUrl(int blockIndex, String sourceUrl, ByteRange sourceRange) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public void commit(int blockCount) {
-            committedBlocks = blockCount;
-        }
-
-        @Override
-        public void close() {
-        }
-
-        byte[] committed() {
-            return java.util.stream.IntStream.range(0, committedBlocks)
-                    .mapToObj(blocks::get)
-                    .reduce(new byte[0], RecordingBlockUpload::concat);
-        }
-
-        private static byte[] concat(byte[] left, byte[] right) {
-            byte[] result = new byte[left.length + right.length];
-            System.arraycopy(left, 0, result, 0, left.length);
-            System.arraycopy(right, 0, result, left.length, right.length);
-            return result;
-        }
+    private static byte[] concat(byte[] left, byte[] right) {
+        byte[] result = new byte[left.length + right.length];
+        System.arraycopy(left, 0, result, 0, left.length);
+        System.arraycopy(right, 0, result, left.length, right.length);
+        return result;
     }
 }

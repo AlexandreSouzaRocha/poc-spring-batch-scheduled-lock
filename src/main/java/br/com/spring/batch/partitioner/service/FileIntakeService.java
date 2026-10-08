@@ -8,10 +8,12 @@ import br.com.spring.batch.partitioner.model.document.BlobLocation;
 import br.com.spring.batch.partitioner.model.document.MovementInfo;
 import br.com.spring.batch.partitioner.model.document.ReceivedFileDocument;
 import br.com.spring.batch.partitioner.model.enums.FileStatus;
+import br.com.spring.batch.partitioner.model.layout.FileHeader;
+import br.com.spring.batch.partitioner.model.layout.FileLayout;
 import br.com.spring.batch.partitioner.model.layout.MovementFileName;
 import br.com.spring.batch.partitioner.repository.OriginalFileRepository;
 import br.com.spring.batch.partitioner.storage.BlobFile;
-import br.com.spring.batch.partitioner.storage.BlobHeaderReader;
+import br.com.spring.batch.partitioner.storage.BlobStorage;
 import br.com.spring.batch.partitioner.support.log.StructuredLogger;
 
 import org.springframework.dao.DuplicateKeyException;
@@ -23,13 +25,15 @@ public class FileIntakeService {
     private static final StructuredLogger log = StructuredLogger.of(FileIntakeService.class, "file-intake");
 
     private final OriginalFileRepository repository;
-    private final BlobHeaderReader headerReader;
+    private final BlobStorage storage;
+    private final FileLayout layout;
     private final PartitionSettings settings;
 
-    public FileIntakeService(OriginalFileRepository repository, BlobHeaderReader headerReader,
+    public FileIntakeService(OriginalFileRepository repository, BlobStorage storage, FileLayout layout,
                              PartitionSettings settings) {
         this.repository = repository;
-        this.headerReader = headerReader;
+        this.storage = storage;
+        this.layout = layout;
         this.settings = settings;
     }
 
@@ -94,7 +98,7 @@ public class FileIntakeService {
 
     private MovementInfo movementFromHeader(BlobFile file) {
         try {
-            return MovementInfo.from(headerReader.read(file.path()));
+            return MovementInfo.from(FileHeader.parse(storage.read(file.path(), layout.headerRange()), layout));
         } catch (RuntimeException e) {
             log.warn("file.classify").field("fileId", idOf(file)).field("fileName", file.fileName()).error(e)
                     .log("nome sem data de movimento e header ilegível; a validação do job decide");

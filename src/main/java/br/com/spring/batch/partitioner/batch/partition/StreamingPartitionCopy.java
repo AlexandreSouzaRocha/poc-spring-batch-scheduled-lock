@@ -12,9 +12,8 @@ import br.com.spring.batch.partitioner.batch.progress.ProgressCounter;
 import br.com.spring.batch.partitioner.model.partition.ByteRange;
 import br.com.spring.batch.partitioner.model.partition.PartitionChunk;
 import br.com.spring.batch.partitioner.model.partition.PartitionChunks;
-import br.com.spring.batch.partitioner.storage.BlobReader;
-import br.com.spring.batch.partitioner.storage.BlobWriter;
-import br.com.spring.batch.partitioner.storage.BlockUpload;
+import br.com.spring.batch.partitioner.storage.BlobStorage;
+import br.com.spring.batch.partitioner.storage.BlockList;
 import br.com.spring.batch.partitioner.support.log.RequestContext;
 
 public class StreamingPartitionCopy implements PartitionCopy {
@@ -22,14 +21,12 @@ public class StreamingPartitionCopy implements PartitionCopy {
     private static final int HEADER_BLOCK_INDEX = 0;
     private static final int FIRST_DATA_BLOCK_INDEX = 1;
 
-    private final BlobReader reader;
-    private final BlobWriter writer;
+    private final BlobStorage storage;
     private final int blockSizeBytes;
     private final int threads;
 
-    public StreamingPartitionCopy(BlobReader reader, BlobWriter writer, int blockSizeBytes, int threads) {
-        this.reader = reader;
-        this.writer = writer;
+    public StreamingPartitionCopy(BlobStorage storage, int blockSizeBytes, int threads) {
+        this.storage = storage;
         this.blockSizeBytes = blockSizeBytes;
         this.threads = threads;
     }
@@ -37,21 +34,20 @@ public class StreamingPartitionCopy implements PartitionCopy {
     @Override
     public long copy(String sourcePath, ByteRange range, String targetPath, byte[] header, ProgressCounter progress) {
         PartitionChunks chunks = PartitionChunks.of(range, threads, blockSizeBytes, FIRST_DATA_BLOCK_INDEX);
-        try (BlockUpload upload = writer.openBlocks(targetPath)) {
-            upload.stage(HEADER_BLOCK_INDEX, header, header.length);
-            long copiedBytes = copyChunks(sourcePath, chunks.chunks(), upload, progress);
-            upload.commit(chunks.blockCount() + FIRST_DATA_BLOCK_INDEX);
-            return copiedBytes;
-        }
+        BlockList blocks = storage.openBlockList(targetPath);
+        blocks.stage(HEADER_BLOCK_INDEX, header, header.length);
+        long copiedBytes = copyChunks(sourcePath, chunks.chunks(), blocks, progress);
+        blocks.commit(chunks.blockCount() + FIRST_DATA_BLOCK_INDEX);
+        return copiedBytes;
     }
 
-    private long copyChunks(String sourcePath, List<PartitionChunk> chunks, BlockUpload upload,
+    private long copyChunks(String sourcePath, List<PartitionChunk> chunks, BlockList blocks,
             ProgressCounter progress) {
         String requestId = RequestContext.currentRequestId();
         try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
             return chunks.stream()
                     .map(chunk -> executor.submit(() -> RequestContext.call(requestId,
-                            () -> copyChunk(sourcePath, chunk, upload, progress))))
+                            () -> copyChunk(sourcePath, chunk, blocks, progress))))
                     .toList()
                     .stream()
                     .mapToLong(StreamingPartitionCopy::await)
@@ -59,14 +55,14 @@ public class StreamingPartitionCopy implements PartitionCopy {
         }
     }
 
-    private long copyChunk(String sourcePath, PartitionChunk chunk, BlockUpload upload, ProgressCounter progress) {
+    private long copyChunk(String sourcePath, PartitionChunk chunk, BlockList blocks, ProgressCounter progress) {
         byte[] buffer = new byte[blockSizeBytes];
         int blockIndex = chunk.firstBlockIndex();
         long copiedBytes = 0;
-        try (InputStream input = reader.openStream(sourcePath, chunk.bytes())) {
+        try (InputStream input = storage.openStream(sourcePath, chunk.bytes())) {
             int read = input.readNBytes(buffer, 0, buffer.length);
             while (read > 0) {
-                upload.stage(blockIndex, buffer, read);
+                blocks.stage(blockIndex, buffer, read);
                 progress.advance(read);
                 copiedBytes += read;
                 blockIndex++;

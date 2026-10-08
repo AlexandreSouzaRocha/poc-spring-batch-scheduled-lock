@@ -1,5 +1,7 @@
 package br.com.spring.batch.partitioner.model.layout;
 
+import br.com.spring.batch.partitioner.model.partition.ByteRange;
+
 public record FileLayout(LineSeparator separator) {
 
     public static final byte HEADER_INDICATOR = 'H';
@@ -14,6 +16,10 @@ public record FileLayout(LineSeparator separator) {
 
     public int headerLineBytes() {
         return HEADER_LENGTH + separator.length();
+    }
+
+    public ByteRange headerRange() {
+        return new ByteRange(0, headerLineBytes());
     }
 
     public int recordLineBytes() {

@@ -9,13 +9,11 @@ import java.util.stream.Collectors;
 
 import br.com.spring.batch.partitioner.model.document.ReceivedFileDocument;
 import br.com.spring.batch.partitioner.model.layout.FileLayout;
-import br.com.spring.batch.partitioner.model.partition.ByteRange;
 import br.com.spring.batch.partitioner.repository.OriginalFileRepository;
 import br.com.spring.batch.partitioner.repository.PartitionFileRepository;
-import br.com.spring.batch.partitioner.storage.BlobCatalog;
 import br.com.spring.batch.partitioner.storage.BlobFile;
 import br.com.spring.batch.partitioner.storage.BlobPaths;
-import br.com.spring.batch.partitioner.storage.BlobReader;
+import br.com.spring.batch.partitioner.storage.BlobStorage;
 
 import org.springframework.stereotype.Service;
 
@@ -27,10 +25,10 @@ public class FileVerificationService {
     private final BlobInspection blobs;
 
     public FileVerificationService(OriginalFileRepository originals, PartitionFileRepository partitions,
-                                   BlobCatalog catalog, BlobReader reader, BlobPaths paths, FileLayout layout) {
+                                   BlobStorage storage, BlobPaths paths, FileLayout layout) {
         this.originals = originals;
         this.partitions = partitions;
-        this.blobs = new BlobInspection(catalog, reader, paths, layout);
+        this.blobs = new BlobInspection(storage, paths, layout);
     }
 
     public Optional<VerificationReport> verify(String fileId) {
@@ -62,25 +60,25 @@ public class FileVerificationService {
         }
     }
 
-    private record BlobInspection(BlobCatalog catalog, BlobReader reader, BlobPaths paths, FileLayout layout) {
+    private record BlobInspection(BlobStorage storage, BlobPaths paths, FileLayout layout) {
 
         Map<String, BlobFile> partitionBlobs(ReceivedFileDocument original) {
             if (!original.hasMovement()) {
                 return Map.of();
             }
-            return catalog.list(paths.partitionPrefix(original)).stream()
+            return storage.list(paths.partitionPrefix(original)).stream()
                     .collect(Collectors.toMap(BlobFile::path, Function.identity()));
         }
 
         boolean exists(String path) {
-            return catalog.list(path).stream().anyMatch(file -> file.path().equals(path));
+            return storage.exists(path);
         }
 
         PartitionCheck check(ReceivedFileDocument original, ReceivedFileDocument partition, BlobFile blob) {
             long expectedSize = layout.headerLineBytes() + partition.lineCount() * layout.recordLineBytes();
             boolean exists = blob != null;
             boolean sizeMatches = exists && blob.sizeBytes() == expectedSize;
-            boolean headerMatches = exists && Arrays.equals(reader.read(blob.path(), new ByteRange(0, layout.headerLineBytes())),
+            boolean headerMatches = exists && Arrays.equals(storage.read(blob.path(), layout.headerRange()),
                     original.headerLineBytes(layout));
             return new PartitionCheck(partition.currentPath(), exists, sizeMatches, headerMatches,
                     partition.audit().publishedAt() != null, partition.lineCount());

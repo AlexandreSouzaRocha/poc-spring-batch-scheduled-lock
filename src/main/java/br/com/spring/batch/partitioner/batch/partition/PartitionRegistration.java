@@ -12,30 +12,30 @@ import br.com.spring.batch.partitioner.model.layout.FileLayout;
 import br.com.spring.batch.partitioner.model.partition.PartitionPlan;
 import br.com.spring.batch.partitioner.model.partition.PartitionRange;
 import br.com.spring.batch.partitioner.repository.PartitionFileRepository;
-import br.com.spring.batch.partitioner.storage.BlobCatalog;
 import br.com.spring.batch.partitioner.storage.BlobFile;
 import br.com.spring.batch.partitioner.storage.BlobPaths;
+import br.com.spring.batch.partitioner.storage.BlobStorage;
 
 import org.springframework.stereotype.Component;
 
 @Component
 public class PartitionRegistration {
 
-    private final BlobCatalog catalog;
+    private final BlobStorage storage;
     private final BlobPaths paths;
     private final PartitionFileRepository repository;
     private final FileLayout layout;
 
-    public PartitionRegistration(BlobCatalog catalog, BlobPaths paths, PartitionFileRepository repository,
+    public PartitionRegistration(BlobStorage storage, BlobPaths paths, PartitionFileRepository repository,
             FileLayout layout) {
-        this.catalog = catalog;
+        this.storage = storage;
         this.paths = paths;
         this.repository = repository;
         this.layout = layout;
     }
 
     public List<ReceivedFileDocument> registerUploaded(ReceivedFileDocument original) {
-        Map<String, BlobFile> uploaded = catalog.list(paths.partitionPrefix(original)).stream()
+        Map<String, BlobFile> uploaded = storage.list(paths.partitionPrefix(original)).stream()
                 .collect(Collectors.toMap(BlobFile::path, Function.identity()));
         Instant now = Instant.now();
         List<ReceivedFileDocument> partitions = PartitionPlan.split(original.lineCount(), original.partitionCount(), layout)

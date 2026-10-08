@@ -5,7 +5,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 
-import br.com.spring.batch.partitioner.storage.azure.AzureBlockUpload;
 import com.azure.storage.blob.specialized.BlockBlobClient;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -20,7 +19,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
-class AzureBlockUploadTest {
+class BlockOutputStreamTest {
 
     private final BlockBlobClient blob = mock(BlockBlobClient.class);
     private final ByteArrayOutputStream staged = new ByteArrayOutputStream();
@@ -30,8 +29,8 @@ class AzureBlockUploadTest {
         captureStagedBytes();
         byte[] content = "0123456789ABCDEFGHIJ".getBytes();
 
-        try (AzureBlockUpload upload = new AzureBlockUpload(blob, 8)) {
-            upload.output().write(content);
+        try (BlockOutputStream upload = new BlockOutputStream(blob, 8)) {
+            upload.write(content);
             upload.commit();
         }
 
@@ -44,8 +43,8 @@ class AzureBlockUploadTest {
 
     @Test
     void neverCommitsWhenClosedWithoutCommit() throws IOException {
-        try (AzureBlockUpload upload = new AzureBlockUpload(blob, 8)) {
-            upload.output().write(new byte[20]);
+        try (BlockOutputStream upload = new BlockOutputStream(blob, 8)) {
+            upload.write(new byte[20]);
         }
 
         verify(blob, never()).commitBlockList(any(), eq(true));
