@@ -4,8 +4,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import br.com.spring.batch.partitioner.batch.execution.ExecutionSummary;
-import br.com.spring.batch.partitioner.batch.execution.FileExecutions;
+import br.com.spring.batch.partitioner.batch.FileJobExecutions;
+import br.com.spring.batch.partitioner.batch.FileJobExecutions.ExecutionSummary;
 import br.com.spring.batch.partitioner.model.document.ReceivedFileDocument;
 import br.com.spring.batch.partitioner.model.enums.FileStatus;
 import br.com.spring.batch.partitioner.repository.OriginalFileRepository;
@@ -32,11 +32,11 @@ public class ReceivedFileController {
     private final PartitionFileRepository partitions;
     private final FileVerificationService verificationService;
     private final FileStatusService statusService;
-    private final FileExecutions executions;
+    private final FileJobExecutions executions;
 
     public ReceivedFileController(OriginalFileRepository originals, PartitionFileRepository partitions,
                                   FileVerificationService verificationService, FileStatusService statusService,
-                                  FileExecutions executions) {
+                                  FileJobExecutions executions) {
         this.originals = originals;
         this.partitions = partitions;
         this.verificationService = verificationService;

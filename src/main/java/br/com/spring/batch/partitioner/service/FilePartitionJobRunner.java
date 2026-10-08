@@ -1,8 +1,7 @@
 package br.com.spring.batch.partitioner.service;
 
-import br.com.spring.batch.partitioner.batch.job.FileJobParameters;
-import br.com.spring.batch.partitioner.batch.recovery.AbandonedExecutionRecovery;
-import br.com.spring.batch.partitioner.batch.recovery.OrphanJobInstanceCleaner;
+import br.com.spring.batch.partitioner.batch.FileExecutionRecovery;
+import br.com.spring.batch.partitioner.batch.FilePartitionJob;
 import br.com.spring.batch.partitioner.model.document.ReceivedFileDocument;
 import br.com.spring.batch.partitioner.support.DuplicateKeyDetector;
 import br.com.spring.batch.partitioner.support.log.ErrorSummary;
@@ -18,16 +17,16 @@ public class FilePartitionJobRunner {
 
     private static final StructuredLogger log = StructuredLogger.of(FilePartitionJobRunner.class, "file-partitioning");
 
-    private final JobLauncherGateway gateway;
-    private final AbandonedExecutionRecovery recovery;
-    private final OrphanJobInstanceCleaner orphanCleaner;
+    private final JobOperator jobOperator;
+    private final Job filePartitionJob;
+    private final FileExecutionRecovery recovery;
     private final FileStatusService statusService;
 
-    public FilePartitionJobRunner(JobOperator jobOperator, Job filePartitionJob, AbandonedExecutionRecovery recovery,
-                                  OrphanJobInstanceCleaner orphanCleaner, FileStatusService statusService) {
-        this.gateway = new JobLauncherGateway(jobOperator, filePartitionJob);
+    public FilePartitionJobRunner(JobOperator jobOperator, Job filePartitionJob, FileExecutionRecovery recovery,
+                                  FileStatusService statusService) {
+        this.jobOperator = jobOperator;
+        this.filePartitionJob = filePartitionJob;
         this.recovery = recovery;
-        this.orphanCleaner = orphanCleaner;
         this.statusService = statusService;
     }
 
@@ -59,14 +58,7 @@ public class FilePartitionJobRunner {
                 .field("attempt", file.attempts()).field("restart", restart)
                 .data("status", file.status()).data("sizeBytes", file.sizeBytes())
                 .log(restart ? "retomando particionamento de onde parou" : "iniciando particionamento");
-        orphanCleaner.removeOrphanOf(file);
-        gateway.start(file.fileName());
-    }
-
-    private record JobLauncherGateway(JobOperator jobOperator, Job job) {
-
-        void start(String fileName) throws Exception {
-            jobOperator.start(job, FileJobParameters.forFile(fileName));
-        }
+        recovery.removeOrphanInstance(file);
+        jobOperator.start(filePartitionJob, FilePartitionJob.parametersFor(file.fileName()));
     }
 }

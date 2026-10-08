@@ -1,4 +1,4 @@
-package br.com.spring.batch.partitioner.batch.step;
+package br.com.spring.batch.partitioner.batch;
 
 public class FileOwnershipLostException extends IllegalStateException {
 

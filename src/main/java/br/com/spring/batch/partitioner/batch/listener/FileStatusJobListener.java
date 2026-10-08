@@ -1,7 +1,7 @@
 package br.com.spring.batch.partitioner.batch.listener;
 
-import br.com.spring.batch.partitioner.batch.execution.FileExecutions;
-import br.com.spring.batch.partitioner.batch.job.FileJobParameters;
+import br.com.spring.batch.partitioner.batch.FileJobExecutions;
+import br.com.spring.batch.partitioner.batch.FilePartitionJob;
 import br.com.spring.batch.partitioner.batch.progress.PartitionProgressReporter;
 import br.com.spring.batch.partitioner.model.layout.InvalidFileException;
 import br.com.spring.batch.partitioner.service.FileStatusService;
@@ -20,10 +20,10 @@ public class FileStatusJobListener implements JobExecutionListener {
 
     private final FileStatusService statusService;
     private final PartitionProgressReporter progressReporter;
-    private final FileExecutions executions;
+    private final FileJobExecutions executions;
 
     public FileStatusJobListener(FileStatusService statusService, PartitionProgressReporter progressReporter,
-                                 FileExecutions executions) {
+                                 FileJobExecutions executions) {
         this.statusService = statusService;
         this.progressReporter = progressReporter;
         this.executions = executions;
@@ -31,9 +31,9 @@ public class FileStatusJobListener implements JobExecutionListener {
 
     @Override
     public void afterJob(JobExecution jobExecution) {
-        String fileId = FileJobParameters.fileIdOf(jobExecution);
+        String fileId = FilePartitionJob.fileIdOf(jobExecution);
         progressReporter.finish(fileId, jobExecution.getId());
-        if (!executions.isCurrent(FileJobParameters.fileNameOf(jobExecution), jobExecution.getId())) {
+        if (!executions.isCurrent(FilePartitionJob.fileNameOf(jobExecution), jobExecution.getId())) {
             log.warn("file.ownership.lost").field("fileId", fileId).field("jobExecutionId", jobExecution.getId())
                     .field("status", jobExecution.getStatus())
                     .log("outra execução assumiu o arquivo; status não alterado por esta instância");

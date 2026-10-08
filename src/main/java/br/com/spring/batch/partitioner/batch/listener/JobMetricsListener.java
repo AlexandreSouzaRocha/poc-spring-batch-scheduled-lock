@@ -2,7 +2,7 @@ package br.com.spring.batch.partitioner.batch.listener;
 
 import java.util.Optional;
 
-import br.com.spring.batch.partitioner.batch.job.FileJobParameters;
+import br.com.spring.batch.partitioner.batch.FilePartitionJob;
 import br.com.spring.batch.partitioner.batch.metrics.StepVolume;
 import br.com.spring.batch.partitioner.batch.metrics.Throughput;
 import br.com.spring.batch.partitioner.model.document.ReceivedFileDocument;
@@ -33,7 +33,7 @@ public class JobMetricsListener implements JobExecutionListener {
 
     @Override
     public void afterJob(JobExecution jobExecution) {
-        String fileId = FileJobParameters.fileIdOf(jobExecution);
+        String fileId = FilePartitionJob.fileIdOf(jobExecution);
         Optional<ReceivedFileDocument> original = repository.findById(fileId).filter(ReceivedFileDocument::isInspected);
         StepVolume volume = original.map(file -> new StepVolume(file.lineCount(), file.sizeBytes()))
                 .orElse(StepVolume.empty());

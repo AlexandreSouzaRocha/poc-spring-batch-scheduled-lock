@@ -1,7 +1,6 @@
 package br.com.spring.batch.partitioner.batch.listener;
 
-import br.com.spring.batch.partitioner.batch.job.BatchNames;
-import br.com.spring.batch.partitioner.batch.job.FileJobParameters;
+import br.com.spring.batch.partitioner.batch.FilePartitionJob;
 import br.com.spring.batch.partitioner.batch.metrics.StepVolume;
 import br.com.spring.batch.partitioner.batch.metrics.Throughput;
 import br.com.spring.batch.partitioner.support.log.ErrorSummary;
@@ -37,11 +36,11 @@ public class StepMetricsListener implements StepExecutionListener {
     }
 
     private static StepVolume volumeOf(StepExecution stepExecution) {
-        if (!BatchNames.PARTITION_MASTER_STEP.equals(stepExecution.getStepName())) {
+        if (!FilePartitionJob.PARTITION_MASTER_STEP.equals(stepExecution.getStepName())) {
             return StepVolume.readFrom(stepExecution.getExecutionContext());
         }
         return stepExecution.getJobExecution().getStepExecutions().stream()
-                .filter(worker -> BatchNames.isPartitionWorker(worker.getStepName()))
+                .filter(worker -> FilePartitionJob.isPartitionWorker(worker.getStepName()))
                 .map(worker -> StepVolume.readFrom(worker.getExecutionContext()))
                 .reduce(StepVolume.empty(), StepVolume::plus);
     }
@@ -58,7 +57,7 @@ public class StepMetricsListener implements StepExecutionListener {
     private static void logMetrics(StepExecution stepExecution, Throughput throughput) {
         log.at(stepExecution.getStatus().isUnsuccessful() ? Level.WARN : Level.INFO, "step.metrics")
                 .field("step", stepExecution.getStepName())
-                .field("fileId", FileJobParameters.fileIdOf(stepExecution))
+                .field("fileId", FilePartitionJob.fileIdOf(stepExecution))
                 .field("jobExecutionId", stepExecution.getJobExecutionId())
                 .field("status", stepExecution.getStatus())
                 .field("durationMs", throughput.durationMs())

@@ -1,12 +1,10 @@
-package br.com.spring.batch.partitioner.batch.recovery;
+package br.com.spring.batch.partitioner.batch;
 
 import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
-import br.com.spring.batch.partitioner.batch.job.BatchNames;
-import br.com.spring.batch.partitioner.batch.job.FileJobParameters;
 import br.com.spring.batch.partitioner.model.document.ReceivedFileDocument;
 import br.com.spring.batch.partitioner.support.log.StructuredLogger;
 
@@ -19,23 +17,37 @@ import org.springframework.batch.core.step.StepExecution;
 import org.springframework.stereotype.Component;
 
 @Component
-public class AbandonedExecutionRecovery {
+public class FileExecutionRecovery {
 
-    private static final StructuredLogger log =
-            StructuredLogger.of(AbandonedExecutionRecovery.class, "partition-recovery");
+    private static final StructuredLogger log = StructuredLogger.of(FileExecutionRecovery.class, "partition-recovery");
     private static final ExitStatus ABANDONED = ExitStatus.FAILED.addExitDescription("abandoned: owner instance died");
 
     private final JobRepository jobRepository;
 
-    public AbandonedExecutionRecovery(JobRepository jobRepository) {
+    public FileExecutionRecovery(JobRepository jobRepository) {
         this.jobRepository = jobRepository;
     }
 
     public boolean prepareRestart(ReceivedFileDocument file) {
-        Optional<JobInstance> instance = Optional.ofNullable(
-                jobRepository.getJobInstance(BatchNames.JOB_NAME, FileJobParameters.forFile(file.fileName())));
+        Optional<JobInstance> instance = instanceOf(file);
         instance.flatMap(this::lastExecution).ifPresent(execution -> recover(file.id(), execution));
         return instance.isPresent();
+    }
+
+    public void removeOrphanInstance(ReceivedFileDocument file) {
+        Optional<JobInstance> orphan = instanceOf(file)
+                .filter(instance -> jobRepository.getJobExecutions(instance).isEmpty());
+        orphan.ifPresent(instance -> {
+            jobRepository.deleteJobInstance(instance);
+            log.warn("instance.orphan").field("fileId", file.id()).field("fileName", file.fileName())
+                    .field("jobInstanceId", instance.getId())
+                    .log("job instance sem execução removida antes de relançar o job");
+        });
+    }
+
+    private Optional<JobInstance> instanceOf(ReceivedFileDocument file) {
+        return Optional.ofNullable(jobRepository.getJobInstance(FilePartitionJob.NAME,
+                FilePartitionJob.parametersFor(file.fileName())));
     }
 
     private Optional<JobExecution> lastExecution(JobInstance instance) {

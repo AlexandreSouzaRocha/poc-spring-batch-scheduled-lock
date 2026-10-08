@@ -1,10 +1,11 @@
 package br.com.spring.batch.partitioner.batch.tasklet;
 
+import br.com.spring.batch.partitioner.batch.FileStepSupport;
 import br.com.spring.batch.partitioner.batch.metrics.StepVolume;
-import br.com.spring.batch.partitioner.batch.partition.OriginalFileArchiver;
-import br.com.spring.batch.partitioner.batch.step.FileStep;
-import br.com.spring.batch.partitioner.batch.step.FileStepSupport;
 import br.com.spring.batch.partitioner.model.document.ReceivedFileDocument;
+import br.com.spring.batch.partitioner.repository.OriginalFileRepository;
+import br.com.spring.batch.partitioner.storage.BlobPaths;
+import br.com.spring.batch.partitioner.storage.BlobStorage;
 import br.com.spring.batch.partitioner.support.chaos.ChaosPoint;
 import br.com.spring.batch.partitioner.support.log.StructuredLogger;
 
@@ -20,19 +21,27 @@ public class MoveOriginalTasklet implements Tasklet {
     private static final StructuredLogger log = StructuredLogger.of(MoveOriginalTasklet.class, "partition-job");
 
     private final FileStepSupport support;
-    private final OriginalFileArchiver archiver;
+    private final BlobStorage storage;
+    private final BlobPaths paths;
+    private final OriginalFileRepository repository;
 
-    public MoveOriginalTasklet(FileStepSupport support, OriginalFileArchiver archiver) {
+    public MoveOriginalTasklet(FileStepSupport support, BlobStorage storage, BlobPaths paths,
+                               OriginalFileRepository repository) {
         this.support = support;
-        this.archiver = archiver;
+        this.storage = storage;
+        this.paths = paths;
+        this.repository = repository;
     }
 
     @Override
     public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) {
-        FileStep step = new FileStep(contribution);
-        ReceivedFileDocument original = support.load(step, ChaosPoint.MOVE);
-        String target = archiver.moveToProcessed(original);
-        StepVolume.ofBytes(original.sizeBytes()).writeTo(step.executionContext());
+        ReceivedFileDocument original = support.load(contribution, ChaosPoint.MOVE);
+        String target = paths.processedPath(original);
+        if (!target.equals(original.currentPath())) {
+            storage.move(original.currentPath(), target);
+            repository.relocate(original.id(), target);
+        }
+        StepVolume.ofBytes(original.sizeBytes()).writeTo(contribution.getStepExecution().getExecutionContext());
         log.info("original.move").field("fileId", original.id()).field("source", original.currentPath())
                 .field("target", target).data("sizeBytes", original.sizeBytes())
                 .log("arquivo original movido para processados");

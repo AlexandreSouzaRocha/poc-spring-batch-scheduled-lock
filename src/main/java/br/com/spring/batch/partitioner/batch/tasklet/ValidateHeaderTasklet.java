@@ -1,12 +1,16 @@
 package br.com.spring.batch.partitioner.batch.tasklet;
 
+import br.com.spring.batch.partitioner.batch.FileStepSupport;
 import br.com.spring.batch.partitioner.batch.metrics.StepVolume;
-import br.com.spring.batch.partitioner.batch.partition.FileInspection;
-import br.com.spring.batch.partitioner.batch.partition.FileInspector;
-import br.com.spring.batch.partitioner.batch.step.FileStep;
-import br.com.spring.batch.partitioner.batch.step.FileStepSupport;
+import br.com.spring.batch.partitioner.config.properties.AppProperties.PartitionSettings;
+import br.com.spring.batch.partitioner.model.document.MovementInfo;
+import br.com.spring.batch.partitioner.model.document.PartitioningInfo;
 import br.com.spring.batch.partitioner.model.document.ReceivedFileDocument;
+import br.com.spring.batch.partitioner.model.layout.FileHeader;
+import br.com.spring.batch.partitioner.model.layout.FileLayout;
+import br.com.spring.batch.partitioner.model.partition.PartitionPlan;
 import br.com.spring.batch.partitioner.repository.OriginalFileRepository;
+import br.com.spring.batch.partitioner.storage.BlobStorage;
 import br.com.spring.batch.partitioner.support.chaos.ChaosPoint;
 import br.com.spring.batch.partitioner.support.log.StructuredLogger;
 
@@ -22,27 +26,34 @@ public class ValidateHeaderTasklet implements Tasklet {
     private static final StructuredLogger log = StructuredLogger.of(ValidateHeaderTasklet.class, "partition-job");
 
     private final FileStepSupport support;
-    private final FileInspector inspector;
+    private final BlobStorage storage;
     private final OriginalFileRepository repository;
+    private final FileLayout layout;
+    private final PartitionSettings settings;
 
-    public ValidateHeaderTasklet(FileStepSupport support, FileInspector inspector, OriginalFileRepository repository) {
+    public ValidateHeaderTasklet(FileStepSupport support, BlobStorage storage, OriginalFileRepository repository,
+                                 FileLayout layout, PartitionSettings settings) {
         this.support = support;
-        this.inspector = inspector;
+        this.storage = storage;
         this.repository = repository;
+        this.layout = layout;
+        this.settings = settings;
     }
 
     @Override
     public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) {
-        FileStep step = new FileStep(contribution);
-        ReceivedFileDocument original = support.load(step, ChaosPoint.VALIDATE);
-        FileInspection inspection = inspector.inspect(original);
-        repository.recordInspection(original.id(), inspection.movement(), inspection.partitioning());
-        StepVolume.ofLines(inspection.lineCount()).writeTo(step.executionContext());
+        ReceivedFileDocument original = support.load(contribution, ChaosPoint.VALIDATE);
+        FileHeader header = FileHeader.parse(storage.read(original.currentPath(), layout.headerRange()), layout);
+        long lineCount = layout.detailLineCount(original.sizeBytes());
+        int partitionCount = PartitionPlan.effectivePartitionCount(lineCount, settings.count());
+        repository.recordInspection(original.id(), MovementInfo.from(header),
+                PartitioningInfo.ofOriginal(lineCount, partitionCount));
+        StepVolume.ofLines(lineCount).writeTo(contribution.getStepExecution().getExecutionContext());
         log.info("header.validate").field("fileId", original.id())
-                .field("movementType", inspection.header().movementType())
-                .field("movementDate", inspection.header().movementDateText())
-                .field("lines", inspection.lineCount()).field("partitions", inspection.partitionCount())
-                .data("sizeBytes", original.sizeBytes()).data("header", inspection.header().text())
+                .field("movementType", header.movementType())
+                .field("movementDate", header.movementDateText())
+                .field("lines", lineCount).field("partitions", partitionCount)
+                .data("sizeBytes", original.sizeBytes()).data("header", header.text())
                 .log("header válido");
         return RepeatStatus.FINISHED;
     }
