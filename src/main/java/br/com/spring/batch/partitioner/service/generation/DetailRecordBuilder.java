@@ -1,7 +1,9 @@
-package br.com.spring.batch.partitioner.model.layout;
+package br.com.spring.batch.partitioner.service.generation;
 
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ThreadLocalRandom;
+
+import br.com.spring.batch.partitioner.model.layout.FileLayout;
 
 public final class DetailRecordBuilder {
 

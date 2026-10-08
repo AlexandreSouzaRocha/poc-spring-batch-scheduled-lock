@@ -7,19 +7,9 @@ public record ChaosRule(ChaosPoint point, ChaosAction action, int onAttempt, Int
 
     private static final int ANY_ATTEMPT = 0;
 
-    public boolean matches(ChaosTarget target) {
-        return point == target.point() && attemptMatches(target) && partitionMatches(target);
-    }
-
-    public void applyTo(ChaosTarget target) {
-        action.apply(this, target);
-    }
-
-    private boolean attemptMatches(ChaosTarget target) {
-        return onAttempt == ANY_ATTEMPT || onAttempt == target.attempt();
-    }
-
-    private boolean partitionMatches(ChaosTarget target) {
-        return partitionIndex == null || Objects.equals(partitionIndex, target.partitionIndex());
+    public boolean matches(ChaosPoint point, int attempt, Integer partitionIndex) {
+        boolean attemptMatches = onAttempt == ANY_ATTEMPT || onAttempt == attempt;
+        boolean partitionMatches = this.partitionIndex == null || Objects.equals(this.partitionIndex, partitionIndex);
+        return this.point == point && attemptMatches && partitionMatches;
     }
 }

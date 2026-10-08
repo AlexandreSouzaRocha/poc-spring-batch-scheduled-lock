@@ -3,8 +3,8 @@ package br.com.spring.batch.partitioner.model;
 import java.util.List;
 
 import br.com.spring.batch.partitioner.model.partition.ByteRange;
-import br.com.spring.batch.partitioner.model.partition.PartitionChunk;
 import br.com.spring.batch.partitioner.model.partition.PartitionChunks;
+import br.com.spring.batch.partitioner.model.partition.PartitionChunks.Chunk;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -31,7 +31,7 @@ class PartitionChunksTest {
     void assignsSequentialBlockIndexes() {
         PartitionChunks chunks = PartitionChunks.of(new ByteRange(0, 10_000), 5, BLOCK, 1);
 
-        assertThat(chunks.chunks().stream().map(PartitionChunk::firstBlockIndex))
+        assertThat(chunks.chunks().stream().map(Chunk::firstBlockIndex))
                 .containsExactly(1, 3, 5, 7, 9);
     }
 
@@ -55,7 +55,7 @@ class PartitionChunksTest {
         assertThat(chunks.chunks().getLast().bytes().end()).isEqualTo(3500);
     }
 
-    private static long totalLength(List<PartitionChunk> chunks) {
+    private static long totalLength(List<Chunk> chunks) {
         return chunks.stream().mapToLong(chunk -> chunk.bytes().length()).sum();
     }
 }

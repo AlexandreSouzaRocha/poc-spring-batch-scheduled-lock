@@ -21,23 +21,19 @@ public class PartitionProgressReporter {
     }
 
     public ProgressCounter track(String fileId, long executionId, int partitionIndex, long totalBytes) {
-        fileCounter(fileId, executionId).addTotal(totalBytes);
-        return new ProgressCounter(totalBytes, window(),
-                snapshot -> reportPartition(fileId, partitionIndex, snapshot),
-                bytes -> advanceFile(fileId, executionId, bytes));
+        ProgressCounter fileCounter = fileCounter(fileId, executionId);
+        fileCounter.addTotal(totalBytes);
+        return new ProgressCounter(totalBytes, intervalSeconds,
+                snapshot -> reportPartition(fileId, partitionIndex, snapshot), fileCounter);
     }
 
     public void finish(String fileId, long executionId) {
         files.remove(key(fileId, executionId));
     }
 
-    private void advanceFile(String fileId, long executionId, long bytes) {
-        fileCounter(fileId, executionId).advance(bytes);
-    }
-
     private ProgressCounter fileCounter(String fileId, long executionId) {
         return files.computeIfAbsent(key(fileId, executionId),
-                key -> new ProgressCounter(0, window(), snapshot -> reportFile(fileId, snapshot), bytes -> { }));
+                key -> new ProgressCounter(0, intervalSeconds, snapshot -> reportFile(fileId, snapshot), null));
     }
 
     private void reportPartition(String fileId, int partitionIndex, ProgressSnapshot snapshot) {
@@ -53,10 +49,6 @@ public class PartitionProgressReporter {
                 .field("bytes", snapshot.copiedBytes()).field("totalBytes", snapshot.totalBytes())
                 .field("mbPerSec", snapshot.megabytesPerSecond()).field("etaSec", snapshot.remainingSeconds())
                 .log("particionamento em andamento");
-    }
-
-    private ProgressWindow window() {
-        return ProgressWindow.ofSeconds(intervalSeconds);
     }
 
     private static String key(String fileId, long executionId) {

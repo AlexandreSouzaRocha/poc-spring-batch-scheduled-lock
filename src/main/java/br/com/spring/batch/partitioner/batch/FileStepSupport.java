@@ -3,7 +3,6 @@ package br.com.spring.batch.partitioner.batch;
 import br.com.spring.batch.partitioner.model.document.ReceivedFileDocument;
 import br.com.spring.batch.partitioner.repository.OriginalFileRepository;
 import br.com.spring.batch.partitioner.support.chaos.ChaosPoint;
-import br.com.spring.batch.partitioner.support.chaos.ChaosTarget;
 import br.com.spring.batch.partitioner.support.chaos.FailureInjector;
 
 import org.springframework.batch.core.step.StepContribution;
@@ -26,7 +25,7 @@ public class FileStepSupport {
 
     public ReceivedFileDocument load(StepContribution contribution, ChaosPoint point) {
         ReceivedFileDocument original = load(contribution);
-        failureInjector.check(ChaosTarget.file(point, original.id(), original.attempts()));
+        failureInjector.check(point, original.id(), original.attempts());
         return original;
     }
 
@@ -37,7 +36,7 @@ public class FileStepSupport {
     }
 
     public void checkPartition(ReceivedFileDocument original, int partitionIndex) {
-        failureInjector.check(ChaosTarget.partition(original.id(), original.attempts(), partitionIndex));
+        failureInjector.checkPartition(original.id(), original.attempts(), partitionIndex);
     }
 
     private void requireCurrentExecution(String fileName, long jobExecutionId) {

@@ -2,31 +2,37 @@ package br.com.spring.batch.partitioner.batch.progress;
 
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
-import java.util.function.LongConsumer;
 
 public final class ProgressCounter {
 
     private static final long NANOS_PER_MILLI = 1_000_000L;
+    private static final long NANOS_PER_SECOND = 1_000_000_000L;
 
     private final AtomicLong copiedBytes = new AtomicLong();
     private final AtomicLong totalBytes;
     private final long startNanos = System.nanoTime();
-    private final ProgressWindow window;
-    private final Consumer<ProgressSnapshot> listener;
-    private final LongConsumer downstream;
+    private final long reportIntervalNanos;
+    private final AtomicLong nextReportNanos;
+    private final Consumer<ProgressSnapshot> reporter;
+    private final ProgressCounter parent;
 
-    ProgressCounter(long totalBytes, ProgressWindow window, Consumer<ProgressSnapshot> listener,
-            LongConsumer downstream) {
+    ProgressCounter(long totalBytes, int reportIntervalSeconds, Consumer<ProgressSnapshot> reporter,
+                    ProgressCounter parent) {
         this.totalBytes = new AtomicLong(totalBytes);
-        this.window = window;
-        this.listener = listener;
-        this.downstream = downstream;
+        this.reportIntervalNanos = reportIntervalSeconds * NANOS_PER_SECOND;
+        this.nextReportNanos = new AtomicLong(startNanos + reportIntervalNanos);
+        this.reporter = reporter;
+        this.parent = parent;
     }
 
     public void advance(long bytes) {
         copiedBytes.addAndGet(bytes);
-        downstream.accept(bytes);
-        reportIfDue();
+        if (parent != null) {
+            parent.advance(bytes);
+        }
+        if (isReportDue()) {
+            reporter.accept(snapshot());
+        }
     }
 
     void addTotal(long bytes) {
@@ -38,10 +44,10 @@ public final class ProgressCounter {
                 (System.nanoTime() - startNanos) / NANOS_PER_MILLI);
     }
 
-    private void reportIfDue() {
-        if (!window.isDue(System.nanoTime())) {
-            return;
-        }
-        listener.accept(snapshot());
+    private boolean isReportDue() {
+        long now = System.nanoTime();
+        long scheduled = nextReportNanos.get();
+        return reportIntervalNanos > 0 && now >= scheduled
+                && nextReportNanos.compareAndSet(scheduled, now + reportIntervalNanos);
     }
 }

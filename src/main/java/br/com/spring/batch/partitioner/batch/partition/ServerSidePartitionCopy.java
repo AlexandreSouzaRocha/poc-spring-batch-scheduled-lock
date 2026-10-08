@@ -9,8 +9,8 @@ import java.util.stream.LongStream;
 
 import br.com.spring.batch.partitioner.batch.progress.ProgressCounter;
 import br.com.spring.batch.partitioner.model.partition.ByteRange;
-import br.com.spring.batch.partitioner.model.partition.PartitionChunk;
 import br.com.spring.batch.partitioner.model.partition.PartitionChunks;
+import br.com.spring.batch.partitioner.model.partition.PartitionChunks.Chunk;
 import br.com.spring.batch.partitioner.storage.BlobStorage;
 import br.com.spring.batch.partitioner.storage.BlockList;
 import br.com.spring.batch.partitioner.support.log.RequestContext;
@@ -43,7 +43,7 @@ public class ServerSidePartitionCopy implements PartitionCopy {
         return copiedBytes;
     }
 
-    private long stageChunks(String sourceUrl, List<PartitionChunk> chunks, BlockList blocks,
+    private long stageChunks(String sourceUrl, List<Chunk> chunks, BlockList blocks,
             ProgressCounter progress) {
         String requestId = RequestContext.currentRequestId();
         try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
@@ -57,7 +57,7 @@ public class ServerSidePartitionCopy implements PartitionCopy {
         }
     }
 
-    private long stageChunk(String sourceUrl, PartitionChunk chunk, BlockList blocks, ProgressCounter progress) {
+    private long stageChunk(String sourceUrl, Chunk chunk, BlockList blocks, ProgressCounter progress) {
         long copiedBytes = 0;
         int blockIndex = chunk.firstBlockIndex();
         for (ByteRange block : blocksOf(chunk.bytes())) {

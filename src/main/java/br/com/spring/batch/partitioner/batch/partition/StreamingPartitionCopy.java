@@ -10,8 +10,8 @@ import java.util.concurrent.Future;
 
 import br.com.spring.batch.partitioner.batch.progress.ProgressCounter;
 import br.com.spring.batch.partitioner.model.partition.ByteRange;
-import br.com.spring.batch.partitioner.model.partition.PartitionChunk;
 import br.com.spring.batch.partitioner.model.partition.PartitionChunks;
+import br.com.spring.batch.partitioner.model.partition.PartitionChunks.Chunk;
 import br.com.spring.batch.partitioner.storage.BlobStorage;
 import br.com.spring.batch.partitioner.storage.BlockList;
 import br.com.spring.batch.partitioner.support.log.RequestContext;
@@ -41,7 +41,7 @@ public class StreamingPartitionCopy implements PartitionCopy {
         return copiedBytes;
     }
 
-    private long copyChunks(String sourcePath, List<PartitionChunk> chunks, BlockList blocks,
+    private long copyChunks(String sourcePath, List<Chunk> chunks, BlockList blocks,
             ProgressCounter progress) {
         String requestId = RequestContext.currentRequestId();
         try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
@@ -55,7 +55,7 @@ public class StreamingPartitionCopy implements PartitionCopy {
         }
     }
 
-    private long copyChunk(String sourcePath, PartitionChunk chunk, BlockList blocks, ProgressCounter progress) {
+    private long copyChunk(String sourcePath, Chunk chunk, BlockList blocks, ProgressCounter progress) {
         byte[] buffer = new byte[blockSizeBytes];
         int blockIndex = chunk.firstBlockIndex();
         long copiedBytes = 0;

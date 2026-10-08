@@ -47,8 +47,8 @@ public final class LogEntry {
             return;
         }
         StringBuilder line = new StringBuilder(256);
-        fields.forEach((name, value) -> append(line, name, LogValues.format(value)));
-        append(line, MESSAGE, LogValues.quote(message));
+        fields.forEach((name, value) -> append(line, name, format(value)));
+        append(line, MESSAGE, quote(message));
         appendJson(line, DATA, data);
         appendJson(line, ERROR, error);
         target.write(line.toString());
@@ -66,6 +66,20 @@ public final class LogEntry {
             line.append(' ');
         }
         line.append(name).append('=').append(value);
+    }
+
+    private static String format(Object value) {
+        String text = String.valueOf(value);
+        boolean needsQuotes = text.isEmpty() || text.chars().anyMatch(LogEntry::isSpecial);
+        return needsQuotes ? quote(text) : text;
+    }
+
+    private static String quote(String text) {
+        return '"' + text.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", " ") + '"';
+    }
+
+    private static boolean isSpecial(int character) {
+        return Character.isWhitespace(character) || character == '"' || character == '=';
     }
 
     private static String toJson(Map<String, Object> json) {
