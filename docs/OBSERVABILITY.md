@@ -31,7 +31,7 @@ Exemplo:
 | `level`, `logger`, `thread` | `INFO`, `b.c.s.b.p...PartitionWriterTasklet`, `virtual-91` | Vêm do pattern do Logback |
 | `request_id` | `cycle-067ea15e/d663e6c7` | Correlação da aplicação, vinda do MDC |
 | `trace_id`, `span_id` | `27fc638f...`, `96a50d69...` | Trace distribuído, gerados pelo agente do OpenTelemetry. Saem como `-` quando o agente está desligado |
-| `context` | `partition-job` | Área da aplicação: `scheduler`, `blob-polling`, `file-partitioning`, `partition-job`, `partition-recovery`, `metrics`, `generator`, `chaos`, `http`, `blob-storage` |
+| `context` | `partition-job` | Área da aplicação: `scheduler`, `file-intake`, `file-partitioning`, `partition-job`, `partition-recovery`, `metrics`, `generator`, `chaos`, `http`, `blob-storage` |
 | `operation` | `partition.upload` | Operação que gerou a linha |
 | campos livres | `fileId=... partitionIndex=4 durationMs=620` | Os campos importantes de cada operação, fáceis de filtrar e de virar atributo no Dynatrace |
 | `msg` | `"partição enviada ao blob"` | Texto para leitura humana. Entre aspas porque tem espaço e vem antes de `data` |

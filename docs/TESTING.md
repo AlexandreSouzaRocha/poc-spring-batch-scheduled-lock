@@ -12,11 +12,15 @@ make test
 | `FileLayoutTest` | Contagem de linhas pelo tamanho, arquivo truncado e linha de detalhe de 150 bytes |
 | `PartitionPlanTest` | Faixas contíguas, distribuição do resto, menos linhas que partições e ida e volta pelo `ExecutionContext` |
 | `BlobPathsTest` | Pastas `entrada/`, `processados/` e `<tipo>/` |
-| `InboxFilesTest` | Identidade do arquivo pelo nome (mesmo nome = mesmo arquivo, independente do etag); agrupamento por tipo pelo nome do arquivo, nenhum arquivo descartado e inclusão dos não concluídos que já saíram de `entrada/` |
-| `AzureBlockUploadTest` | Blocos de tamanho fixo em ordem e nenhum commit sem `commit()` |
+| `FileIntakeServiceTest` | Identidade do arquivo pelo nome (mesmo nome = mesmo arquivo, independente do etag) e inclusão dos não concluídos que já saíram de `entrada/` |
+| `PartitionCycleServiceTest` | Agrupamento por tipo pelo nome do arquivo, sem descartar nenhum arquivo |
+| `StreamingPartitionCopyTest` / `ServerSidePartitionCopyTest` | Cópia paralela da faixa de bytes: conteúdo final idêntico com 1 a 8 threads (streaming) e blocos contíguos e em ordem (server-side) |
+| `PartitionChunksTest` | Divisão da faixa em trechos alinhados ao bloco |
+| `BlockOutputStreamTest` | Blocos de tamanho fixo em ordem e nenhum commit sem `commit()` |
 | `ChaosRuleTest` | Regras de injeção de falha por tentativa e partição |
 | `ErrorSummaryTest` | Resumo de erro sem stack trace |
 | `OriginalFileRepositoryIntegrationTest` | MongoDB real (Testcontainers): documento com `attempts` na raiz e sem dados de execução; `_id` derivado do nome; nome repetido gera `DuplicateKeyException`; `PARTITIONING` interrompido e `FAILED_PARTITIONING` retomados com uma tentativa a mais; tentativas esgotadas viram `FAILED`; `FAILED` só volta via requeue; `COMPLETED` nunca é retomado |
+| `PartitionFileRepositoryIntegrationTest` | MongoDB real com replica set (Testcontainers): `replaceAll` transacional por arquivo, partições ordenadas por índice, pendentes de publicação e `deleteByParentFileId` só do arquivo |
 | `ConfigurableMongoLockProviderIntegrationTest` | MongoDB real (Testcontainers): exclusão mútua com nome em `_id` e em campo customizado, collection e campos customizados, `lockAtLeastFor`, extensão só pelo dono e lock expirado assumido por outra instância |
 
 ## Teste integrado ponta a ponta

@@ -90,10 +90,11 @@ São dois níveis, ambos com virtual threads:
 
 O segundo nível é seguro porque o Azure Blob monta o arquivo por *block list*: cada bloco é enviado
 com um identificador próprio e a ordem final do arquivo é a do `commitBlockList`, não a ordem em que
-os blocos chegaram. O `PartitionTransfer` calcula os índices de bloco de forma determinística — o
+os blocos chegaram. A `PartitionCopy` (`StreamingPartitionCopy` ou `ServerSidePartitionCopy`,
+conforme `app.partition.server-side-copy`) calcula os índices de bloco de forma determinística — o
 bloco 0 é o header e cada trecho conhece o índice do seu primeiro bloco — e só então faz o commit.
-O arquivo resultante é idêntico ao do caminho sequencial, o que `PartitionTransferTest` verifica com
-1, 2, 4 e 8 threads.
+O arquivo resultante é idêntico ao do caminho sequencial, o que `StreamingPartitionCopyTest` verifica
+com 1, 2, 4 e 8 threads.
 
 Como nenhum bloco é visível antes do commit, uma falha em qualquer trecho continua deixando o blob
 inexistente, preservando a atomicidade por partição.
@@ -114,13 +115,13 @@ flowchart LR
 
 | Step | Responsabilidade | Classe |
 |---|---|---|
-| `validateHeaderStep` | Lê só os 19 primeiros bytes do blob, valida o header e o tamanho do arquivo contra o layout, e grava `movement` e `partitioning` no documento | `ValidateHeaderTasklet`, `FileInspector` |
-| `cleanupPartitionsStep` | Se nenhuma tentativa anterior concluiu o `partitionMasterStep`, apaga as partições que sobraram (blob por prefixo + documentos) | `CleanupPartitionsTasklet`, `PartitionCleaner` |
+| `validateHeaderStep` | Lê só os 19 primeiros bytes do blob, valida o header e o tamanho do arquivo contra o layout, e grava `movement` e `partitioning` no documento | `ValidateHeaderTasklet` |
+| `cleanupPartitionsStep` | Se nenhuma tentativa anterior concluiu o `partitionMasterStep`, apaga as partições que sobraram (blob por prefixo + documentos) | `CleanupPartitionsTasklet` |
 | `partitionMasterStep` | Divide as linhas em N faixas (`app.partition.count`) e executa um worker por faixa em virtual threads | `FilePartitioner`, `PartitionPlan` |
-| `partitionWorkerStep` | Grava o header e copia **só a faixa de bytes** da partição, do blob original para o blob de destino, em streaming. **Não grava nada no Mongo** | `PartitionWriterTasklet`, `PartitionBlobWriter` |
-| `registerPartitionsStep` | Só roda depois que **todas** as partições estão no blob. Confere se cada uma existe com o tamanho esperado e insere todos os documentos de uma vez (status `UPLOADED`) numa transação curta | `RegisterPartitionsTasklet`, `PartitionRegistration` |
-| `publishPartitionsStep` | Publica 1 mensagem por partição ainda não publicada, aguarda o ack do broker e só então marca `published_at` + `COMPLETED` | `PublishPartitionsTasklet`, `PartitionPublication` |
-| `moveOriginalStep` | Move o original para `processados/` (cópia server-side + delete, idempotente). É o último passo: enquanto houver falha, o original continua em `entrada/` | `MoveOriginalTasklet`, `OriginalFileArchiver` |
+| `partitionWorkerStep` | Grava o header e copia **só a faixa de bytes** da partição, do blob original para o blob de destino, em streaming. **Não grava nada no Mongo** | `PartitionWriterTasklet`, `PartitionCopy` |
+| `registerPartitionsStep` | Só roda depois que **todas** as partições estão no blob. Confere se cada uma existe com o tamanho esperado e insere todos os documentos de uma vez (status `UPLOADED`) numa transação curta | `RegisterPartitionsTasklet` |
+| `publishPartitionsStep` | Publica 1 mensagem por partição ainda não publicada, aguarda o ack do broker e só então marca `published_at` + `COMPLETED` | `PublishPartitionsTasklet`, `PartitionedFilePublisher` |
+| `moveOriginalStep` | Move o original para `processados/` (cópia server-side + delete, idempotente). É o último passo: enquanto houver falha, o original continua em `entrada/` | `MoveOriginalTasklet`, `BlobStorage.move` |
 
 ### Por que o particionamento é paralelo sem ler o arquivo inteiro
 
@@ -138,7 +139,7 @@ resto da divisão das linhas vai para as primeiras partições, uma linha a mais
 
 ### Upload em blocos e atomicidade de cada partição
 
-`AzureBlockUpload` envia blocos de tamanho fixo (`stageBlock`) e só publica o blob no
+`BlockOutputStream` envia blocos de tamanho fixo (`stageBlock`) e só publica o blob no
 `commit()` (`commitBlockList`). Consequências:
 
 * **Memória limitada:** no máximo um buffer de upload e um de leitura por partição. Com 8 MB, são cerca de 16 MB por partição.
@@ -260,7 +261,7 @@ o original só sai de `entrada/` depois que todas as mensagens foram confirmadas
 | `registerPartitionsStep` | Particionamento pulado (`COMPLETED`), o cleanup não apaga nada e o registro é refeito. É idempotente: remove e insere de novo |
 | `publishPartitionsStep` | Todos os passos anteriores são pulados e só as partições sem `published_at` são publicadas |
 | `moveOriginalStep` | Tudo antes é pulado e o move é refeito. Se a cópia já existia e só faltava o delete, o move apenas conclui |
-| Instância morreu no meio | O keep-alive para e o lock do tipo expira em até `lock-at-most-for`. A instância que adquire o lock encontra o arquivo em `PARTITIONING` e o retoma: o `AbandonedExecutionRecovery` marca a execução presa em `STARTED` como `FAILED` e o restart segue as regras acima |
+| Instância morreu no meio | O keep-alive para e o lock do tipo expira em até `lock-at-most-for`. A instância que adquire o lock encontra o arquivo em `PARTITIONING` e o retoma: o `FileExecutionRecovery` marca a execução presa em `STARTED` como `FAILED` e o restart segue as regras acima |
 | `max-attempts` esgotado | `FAILED`. O arquivo e as partições já criadas ficam como estão, para a tratativa manual |
 
 Cada retomada conta uma tentativa (`attempts`, na raiz do documento), inclusive a de uma instância que caiu. Um arquivo que
@@ -327,8 +328,8 @@ Quando A volta, o job dela continua de onde estava.
 
 A proteção usa o próprio JobRepository, sem nenhum campo na collection de arquivos e sem mexer no
 ShedLock. Ao retomar, B cria uma nova `JobExecution` da mesma `JobInstance` (e o
-`AbandonedExecutionRecovery` marca a de A como `FAILED`). A partir daí, a execução de A deixa de ser
-a **última** execução do arquivo, e o `FileExecutions.isCurrent(fileName, jobExecutionId)` passa a
+`FileExecutionRecovery` marca a de A como `FAILED`). A partir daí, a execução de A deixa de ser
+a **última** execução do arquivo, e o `FileJobExecutions.isCurrent(fileName, jobExecutionId)` passa a
 responder `false` para ela:
 
 | Momento | Regra |
@@ -351,7 +352,7 @@ rodando), o próximo dono do lock do tipo o retoma — a proteção nunca deixa 
    acontecer, mas o tratamento continua: `file.concurrent` no log, nenhuma mudança de status e o ciclo
    segue para o próximo.
 2. **`JobInstance` sem execução.** Se o lançamento falha entre criar a instância e gravar a execução,
-   sobra uma instância órfã. O `OrphanJobInstanceCleaner` descarta, antes de lançar, apenas
+   sobra uma instância órfã. O `FileExecutionRecovery.removeOrphanInstance` descarta, antes de lançar, apenas
    instâncias **sem nenhuma execução**, preservando o caminho de resume.
 
 O lançamento do job **não é envolvido em retry**: criar uma `JobInstance` não é idempotente. Uma
@@ -361,8 +362,8 @@ falha de lançamento segue a regra normal de retentativa (`FAILED_PARTITIONING`)
 
 O `MongoLockProvider` oficial deixa trocar só o nome da collection. Os campos são fixos:
 `_id`, `lockUntil`, `lockedAt` e `lockedBy`. `ConfigurableMongoLockProvider` implementa
-`ExtensibleLockProvider` com o **mesmo algoritmo** do provider oficial, e `MongoLockStore`
-faz as operações via `MongoTemplate`, usando os nomes definidos em `app.shedlock.*`:
+`ExtensibleLockProvider` com o **mesmo algoritmo** do provider oficial e faz as operações via
+`MongoTemplate`, usando os nomes definidos em `app.shedlock.*`:
 
 | Operação | Filtro | Update |
 |---|---|---|
@@ -473,26 +474,24 @@ particionado, o que distribui as mensagens entre as partições e permite consum
 ```
 br.com.spring.batch.partitioner
 ├── controller    REST: gerador, consulta/verificação de arquivos, locks, chaos
-├── service       polling, registro/retomada do arquivo, ciclo, launcher/runner do job, status, verificação
-│   ├── dispatch    despacho por tipo com lock (TYPE_LOCK) ou lock global (GLOBAL_LOCK)
+├── service       ciclo (polling → lock → job), intake (listagem, registro e retomada), runner do job, status, verificação
 │   └── generation  worker de geração de massa (profile generator)
-├── scheduler     FileProcessingScheduler (@Scheduled) e o CycleRunner (request_id e log do ciclo)
-├── batch
-│   ├── job         definição do job, nomes dos steps e JobParameters
-│   ├── step        FileStep / FileStepSupport (carrega o arquivo e aplica o chaos)
-│   ├── tasklet     um tasklet por step
-│   ├── partition   inspeção, plano, escrita, limpeza, arquivamento e publicação das partições
+├── scheduler     FileProcessingScheduler (@Scheduled, request_id e log do ciclo)
+├── batch         definição do job (FilePartitionJob, FilePartitionJobConfig), consultas ao JobRepository
+│   │             (FileJobExecutions), recuperação de execução abandonada (FileExecutionRecovery) e FileStepSupport
+│   ├── tasklet     um tasklet por step, com a regra do step dentro dele
+│   ├── partition   Partitioner do Spring Batch e as estratégias de cópia (streaming e server-side)
+│   ├── progress    log de progresso por partição e por arquivo
 │   ├── listener    status do arquivo e métricas (STEP_METRICS / JOB_METRICS)
-│   ├── metrics     StepVolume e Throughput
-│   ├── execution   última execução do arquivo no JobRepository e checagem de execução corrente
-│   └── recovery    execuções órfãs
-├── repository    received_file_management (original e partições) e o JobRepository customizado (batch/)
+│   └── metrics     StepVolume e Throughput
+├── repository    received_file_management como MongoRepository (originais e partições; updates parciais
+│                 nas implementações *CustomImpl) e o JobRepository customizado (batch/)
 ├── model         documento Mongo, layout posicional, plano de partições e evento Kafka
-├── storage       interfaces BlobCatalog/Reader/Writer/Mover e a implementação Azure
-├── lock          LockProvider configurável do ShedLock
+├── storage       BlobStorage (acesso ao Azure Blob), BlockList e BlockOutputStream
+├── lock          LockProvider configurável do ShedLock e ProcessingLock
 ├── messaging     publicação no Kafka
 ├── config        beans e propriedades
-└── support       log estruturado, request_id, retry do Mongo, chaos
+└── support       log estruturado, request_id, chaos
 ```
 
 Ver também: [TESTING.md](TESTING.md) · [OBSERVABILITY.md](OBSERVABILITY.md) · [README](../README.md).
