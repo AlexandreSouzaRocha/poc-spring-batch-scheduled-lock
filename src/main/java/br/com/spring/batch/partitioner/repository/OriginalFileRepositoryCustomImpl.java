@@ -62,11 +62,6 @@ public class OriginalFileRepositoryCustomImpl implements OriginalFileRepositoryC
     }
 
     @Override
-    public void complete(String id) {
-        update(id, new Update().set(ReceivedFileFields.STATUS, FileStatus.COMPLETED));
-    }
-
-    @Override
     public void failPartitioning(String id) {
         update(id, new Update().set(ReceivedFileFields.STATUS, FileStatus.FAILED_PARTITIONING));
     }

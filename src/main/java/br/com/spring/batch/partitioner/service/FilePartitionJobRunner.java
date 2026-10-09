@@ -34,9 +34,9 @@ public class FilePartitionJobRunner {
         try {
             start(file);
         } catch (JobInstanceAlreadyCompleteException e) {
-            log.warn("file.process").field("fileId", file.id()).field("action", "sync-status")
-                    .log("job já estava COMPLETED; status do arquivo sincronizado");
-            statusService.completed(file.id());
+            log.warn("file.process").field("fileId", file.id()).field("action", "remove-completed")
+                    .log("job já estava COMPLETED; arquivão removido da gestão de arquivos");
+            statusService.removeCompleted(file.id());
         } catch (Exception e) {
             failure(file, e);
         }

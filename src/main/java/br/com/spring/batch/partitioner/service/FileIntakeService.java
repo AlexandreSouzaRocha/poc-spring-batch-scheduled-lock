@@ -7,11 +7,11 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import br.com.spring.batch.partitioner.batch.FileJobExecutions;
 import br.com.spring.batch.partitioner.config.properties.AppProperties.PartitionSettings;
 import br.com.spring.batch.partitioner.model.document.BlobLocation;
 import br.com.spring.batch.partitioner.model.document.MovementInfo;
 import br.com.spring.batch.partitioner.model.document.ReceivedFileDocument;
-import br.com.spring.batch.partitioner.model.enums.FileStatus;
 import br.com.spring.batch.partitioner.model.layout.FileHeader;
 import br.com.spring.batch.partitioner.model.layout.FileLayout;
 import br.com.spring.batch.partitioner.model.layout.MovementFileName;
@@ -34,14 +34,16 @@ public class FileIntakeService {
     private final BlobPaths paths;
     private final FileLayout layout;
     private final PartitionSettings settings;
+    private final FileJobExecutions executions;
 
     public FileIntakeService(OriginalFileRepository repository, BlobStorage storage, BlobPaths paths,
-                             FileLayout layout, PartitionSettings settings) {
+                             FileLayout layout, PartitionSettings settings, FileJobExecutions executions) {
         this.repository = repository;
         this.storage = storage;
         this.paths = paths;
         this.layout = layout;
         this.settings = settings;
+        this.executions = executions;
     }
 
     public List<BlobFile> pendingFiles() {
@@ -57,24 +59,17 @@ public class FileIntakeService {
 
     public Optional<ReceivedFileDocument> take(BlobFile file) {
         return repository.findById(file.fileId())
-                .map(existing -> resume(existing, file))
+                .map(this::resume)
                 .orElseGet(() -> register(file));
     }
 
-    private Optional<ReceivedFileDocument> resume(ReceivedFileDocument file, BlobFile listed) {
+    private Optional<ReceivedFileDocument> resume(ReceivedFileDocument file) {
         Optional<ReceivedFileDocument> resumed = repository.resume(file.id(), settings.maxAttempts());
-        resumed.ifPresentOrElse(partitioning -> logResume(file, partitioning), () -> skip(file, listed));
+        resumed.ifPresentOrElse(partitioning -> logResume(file, partitioning), () -> skip(file));
         return resumed;
     }
 
-    private void skip(ReceivedFileDocument file, BlobFile listed) {
-        if (file.status() == FileStatus.COMPLETED) {
-            log.warn("file.duplicate").field("fileId", file.id()).field("fileName", file.fileName())
-                    .data("listedPath", listed.path()).data("listedEtag", listed.etag())
-                    .data("processedPath", file.currentPath())
-                    .log("arquivo com o mesmo nome já foi processado; ignorado até tratativa manual");
-            return;
-        }
+    private void skip(ReceivedFileDocument file) {
         if (repository.failExhausted(file.id(), settings.maxAttempts())) {
             log.error("file.fail").field("fileId", file.id()).field("fileName", file.fileName())
                     .field("previousStatus", file.status()).field("attempts", file.attempts())
@@ -87,6 +82,12 @@ public class FileIntakeService {
     }
 
     private Optional<ReceivedFileDocument> register(BlobFile file) {
+        if (executions.isCompleted(file.fileName())) {
+            log.warn("file.duplicate").field("fileId", file.fileId()).field("fileName", file.fileName())
+                    .data("listedPath", file.path()).data("listedEtag", file.etag())
+                    .log("arquivo com o mesmo nome já foi processado (JobRepository); ignorado até tratativa manual");
+            return Optional.empty();
+        }
         ReceivedFileDocument original = ReceivedFileDocument.original(file.fileName(),
                 BlobLocation.received(file.path(), file.etag(), file.sizeBytes()), movementOf(file), Instant.now());
         try {

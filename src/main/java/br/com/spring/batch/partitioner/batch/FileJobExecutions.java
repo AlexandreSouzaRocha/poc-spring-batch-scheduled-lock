@@ -29,6 +29,15 @@ public class FileJobExecutions {
         return last(fileName).map(JobExecution::getId).filter(id -> id == jobExecutionId).isPresent();
     }
 
+    public boolean isCompleted(String fileName) {
+        return last(fileName).map(JobExecution::getStatus).filter(status -> status == BatchStatus.COMPLETED)
+                .isPresent();
+    }
+
+    public int executionCount(JobInstance jobInstance) {
+        return jobRepository.getJobExecutions(jobInstance).size();
+    }
+
     public Optional<ExecutionSummary> summary(String fileName) {
         return last(fileName).map(ExecutionSummary::of);
     }

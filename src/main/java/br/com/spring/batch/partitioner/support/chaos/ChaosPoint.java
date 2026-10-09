@@ -6,5 +6,6 @@ public enum ChaosPoint {
     PARTITION,
     REGISTER,
     MOVE,
-    PUBLISH
+    PUBLISH,
+    FINISH
 }

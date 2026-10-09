@@ -6,6 +6,7 @@ import br.com.spring.batch.partitioner.batch.listener.PartitionLinesListener;
 import br.com.spring.batch.partitioner.batch.listener.StepMetricsListener;
 import br.com.spring.batch.partitioner.batch.partition.FilePartitioner;
 import br.com.spring.batch.partitioner.batch.tasklet.CleanupPartitionsTasklet;
+import br.com.spring.batch.partitioner.batch.tasklet.FinishFileTasklet;
 import br.com.spring.batch.partitioner.batch.tasklet.MoveOriginalTasklet;
 import br.com.spring.batch.partitioner.batch.tasklet.PartitionWriterTasklet;
 import br.com.spring.batch.partitioner.batch.tasklet.PublishPartitionsTasklet;
@@ -96,8 +97,14 @@ public class FilePartitionJobConfig {
     }
 
     @Bean
+    public Step finishFileStep(FinishFileTasklet tasklet) {
+        return taskletStep(FilePartitionJob.FINISH_FILE_STEP, tasklet, false);
+    }
+
+    @Bean
     public Job filePartitionJob(Step validateFileStep, Step cleanupPartitionsStep, Step partitionMasterStep,
                                 Step registerPartitionsStep, Step publishPartitionsStep, Step moveOriginalStep,
+                                Step finishFileStep,
                                 FileStatusJobListener fileStatusJobListener, JobMetricsListener jobMetricsListener) {
         return new JobBuilder(FilePartitionJob.NAME, jobRepository)
                 .start(validateFileStep)
@@ -106,6 +113,7 @@ public class FilePartitionJobConfig {
                 .next(registerPartitionsStep)
                 .next(publishPartitionsStep)
                 .next(moveOriginalStep)
+                .next(finishFileStep)
                 .listener(jobMetricsListener)
                 .listener(fileStatusJobListener)
                 .build();

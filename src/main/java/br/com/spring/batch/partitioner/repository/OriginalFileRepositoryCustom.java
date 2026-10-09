@@ -17,8 +17,6 @@ public interface OriginalFileRepositoryCustom {
 
     void relocate(String id, String currentPath);
 
-    void complete(String id);
-
     void failPartitioning(String id);
 
     void fail(String id);

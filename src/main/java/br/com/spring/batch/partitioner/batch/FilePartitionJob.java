@@ -19,7 +19,10 @@ public final class FilePartitionJob {
     public static final String REGISTER_PARTITIONS_STEP = "registerPartitionsStep";
     public static final String PUBLISH_PARTITIONS_STEP = "publishPartitionsStep";
     public static final String MOVE_ORIGINAL_STEP = "moveOriginalStep";
+    public static final String FINISH_FILE_STEP = "finishFileStep";
 
+    public static final String CONTEXT_FILE_SIZE_BYTES = "file.sizeBytes";
+    public static final String CONTEXT_PARTITIONS = "file.partitions";
     public static final String CONTEXT_DETAIL_LINES = "file.detailLines";
     public static final String CONTEXT_DETAIL_LINES_READ = "file.detailLinesRead";
     public static final String CONTEXT_TRAILER_RECORD_COUNT = "file.trailerRecordCount";

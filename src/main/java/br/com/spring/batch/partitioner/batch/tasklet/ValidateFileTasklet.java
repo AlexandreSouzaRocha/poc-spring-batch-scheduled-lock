@@ -54,7 +54,7 @@ public class ValidateFileTasklet implements Tasklet {
         int partitionCount = PartitionPlan.effectivePartitionCount(detailLines, settings.count());
         repository.recordInspection(original.id(), MovementInfo.from(header),
                 PartitioningInfo.ofOriginal(detailLines, partitionCount), TrailerInfo.from(trailer));
-        recordSummary(contribution, detailLines, trailer);
+        recordSummary(contribution, original, detailLines, partitionCount, trailer);
         warnIfTrailerCountDiffers(original, trailer, detailLines);
         log.info("file.validate").field("fileId", original.id())
                 .field("movementType", header.movementType())
@@ -68,9 +68,12 @@ public class ValidateFileTasklet implements Tasklet {
         return RepeatStatus.FINISHED;
     }
 
-    private static void recordSummary(StepContribution contribution, long detailLines, FileTrailer trailer) {
+    private static void recordSummary(StepContribution contribution, ReceivedFileDocument original, long detailLines,
+                                      int partitionCount, FileTrailer trailer) {
         StepVolume.ofLines(detailLines).writeTo(contribution.getStepExecution().getExecutionContext());
         ExecutionContext job = contribution.getStepExecution().getJobExecution().getExecutionContext();
+        job.putLong(FilePartitionJob.CONTEXT_FILE_SIZE_BYTES, original.sizeBytes());
+        job.putInt(FilePartitionJob.CONTEXT_PARTITIONS, partitionCount);
         job.putLong(FilePartitionJob.CONTEXT_DETAIL_LINES, detailLines);
         job.putLong(FilePartitionJob.CONTEXT_TRAILER_RECORD_COUNT, trailer.recordCount());
         job.putString(FilePartitionJob.CONTEXT_TRAILER_PROCESSING_DATE, trailer.processingDateText());

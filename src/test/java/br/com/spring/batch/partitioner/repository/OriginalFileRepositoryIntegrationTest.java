@@ -123,15 +123,6 @@ class OriginalFileRepositoryIntegrationTest {
     }
 
     @Test
-    void completedFileIsNeverResumed() {
-        String id = registered(FILE_NAME);
-        repository.complete(id);
-
-        assertThat(repository.resume(id, MAX_ATTEMPTS)).isEmpty();
-        assertThat(repository.getById(id).status()).isEqualTo(FileStatus.COMPLETED);
-    }
-
-    @Test
     void unfinishedFilesAreThoseInProgressOrAwaitingRetry() {
         String partitioning = registered("MOV_ABERTO_2026.09.24.001.txt");
         String retry = registered("MOV_FECHADO_2026.09.24.001.txt");
@@ -139,7 +130,7 @@ class OriginalFileRepositoryIntegrationTest {
         String completed = registered("MOV_ULTIMA_2026.09.24.001.txt");
         repository.failPartitioning(retry);
         repository.fail(failed);
-        repository.complete(completed);
+        repository.deleteById(completed);
 
         assertThat(repository.findUnfinished()).extracting(ReceivedFileDocument::id)
                 .containsExactlyInAnyOrder(partitioning, retry);

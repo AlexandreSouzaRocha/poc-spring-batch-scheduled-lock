@@ -1,5 +1,7 @@
 package br.com.spring.batch.partitioner.service;
 
+import java.util.Optional;
+
 import br.com.spring.batch.partitioner.config.properties.AppProperties.PartitionSettings;
 import br.com.spring.batch.partitioner.model.document.ReceivedFileDocument;
 import br.com.spring.batch.partitioner.model.enums.FileStatus;
@@ -21,12 +23,18 @@ public class FileStatusService {
         this.settings = settings;
     }
 
-    public void completed(String fileId) {
-        originals.complete(fileId);
+    public void removeCompleted(String fileId) {
+        originals.deleteById(fileId);
     }
 
     public void failed(String fileId, String error, boolean retryable) {
-        ReceivedFileDocument file = originals.getById(fileId);
+        Optional<ReceivedFileDocument> found = originals.findById(fileId);
+        if (found.isEmpty()) {
+            log.warn("file.fail").field("fileId", fileId).data("error", error)
+                    .log("falha depois do arquivão ser removido; o particionamento já estava concluído");
+            return;
+        }
+        ReceivedFileDocument file = found.get();
         if (retryable && !file.attemptsExhausted(settings.maxAttempts())) {
             originals.failPartitioning(fileId);
             log.warn("file.fail").field("fileId", fileId).field("status", FileStatus.FAILED_PARTITIONING)

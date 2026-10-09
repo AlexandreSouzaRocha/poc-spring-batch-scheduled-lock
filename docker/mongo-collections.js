@@ -4,6 +4,7 @@ const SHEDLOCK_NAME_FIELD = process.env.SHEDLOCK_NAME_FIELD || "_id";
 const BATCH_COLLECTIONS = ["batch_job_instance", "batch_job_execution", "batch_step_execution", "batch_sequences"];
 const BATCH_SEQUENCES = ["batch_job_instance_seq", "batch_job_execution_seq", "batch_step_execution_seq"];
 const FILE_COLLECTION = "gerenciamento_arquivo_recebido";
+const INDICATOR_COLLECTION = "indicador_processamento";
 
 function createCollection(name) {
   if (!db.getCollectionNames().includes(name)) {
@@ -19,7 +20,7 @@ function createIndex(collection, keys, options) {
   print("[indexes]     " + collection + "." + options.name);
 }
 
-BATCH_COLLECTIONS.concat([FILE_COLLECTION, SHEDLOCK_COLLECTION]).forEach(createCollection);
+BATCH_COLLECTIONS.concat([FILE_COLLECTION, INDICATOR_COLLECTION, SHEDLOCK_COLLECTION]).forEach(createCollection);
 
 BATCH_SEQUENCES.forEach(function (sequence) {
   db.batch_sequences.updateOne({ _id: sequence }, { $setOnInsert: { count: NumberLong("0") } }, { upsert: true });

@@ -40,7 +40,6 @@ public class FileStatusJobListener implements JobExecutionListener {
             return;
         }
         if (jobExecution.getStatus() == BatchStatus.COMPLETED) {
-            statusService.completed(fileId);
             return;
         }
         statusService.failed(fileId, failureOf(jobExecution), isRetryable(jobExecution));

@@ -1,5 +1,7 @@
 package br.com.spring.batch.partitioner.batch;
 
+import java.util.Optional;
+
 import br.com.spring.batch.partitioner.model.document.ReceivedFileDocument;
 import br.com.spring.batch.partitioner.repository.OriginalFileRepository;
 import br.com.spring.batch.partitioner.support.chaos.ChaosPoint;
@@ -30,13 +32,23 @@ public class FileStepSupport {
     }
 
     public ReceivedFileDocument load(StepContribution contribution) {
-        StepExecution step = contribution.getStepExecution();
-        requireCurrentExecution(FilePartitionJob.fileNameOf(step.getJobExecution()), step.getJobExecutionId());
-        return repository.getById(FilePartitionJob.fileIdOf(step));
+        return repository.getById(currentFileId(contribution));
+    }
+
+    public Optional<ReceivedFileDocument> find(StepContribution contribution, ChaosPoint point) {
+        Optional<ReceivedFileDocument> original = repository.findById(currentFileId(contribution));
+        original.ifPresent(file -> failureInjector.check(point, file.id(), file.attempts()));
+        return original;
     }
 
     public void checkPartition(ReceivedFileDocument original, int partitionIndex) {
         failureInjector.checkPartition(original.id(), original.attempts(), partitionIndex);
+    }
+
+    private String currentFileId(StepContribution contribution) {
+        StepExecution step = contribution.getStepExecution();
+        requireCurrentExecution(FilePartitionJob.fileNameOf(step.getJobExecution()), step.getJobExecutionId());
+        return FilePartitionJob.fileIdOf(step);
     }
 
     private void requireCurrentExecution(String fileName, long jobExecutionId) {
