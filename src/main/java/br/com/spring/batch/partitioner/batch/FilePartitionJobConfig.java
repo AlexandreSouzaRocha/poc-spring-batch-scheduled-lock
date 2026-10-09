@@ -2,6 +2,7 @@ package br.com.spring.batch.partitioner.batch;
 
 import br.com.spring.batch.partitioner.batch.listener.FileStatusJobListener;
 import br.com.spring.batch.partitioner.batch.listener.JobMetricsListener;
+import br.com.spring.batch.partitioner.batch.listener.PartitionLinesListener;
 import br.com.spring.batch.partitioner.batch.listener.StepMetricsListener;
 import br.com.spring.batch.partitioner.batch.partition.FilePartitioner;
 import br.com.spring.batch.partitioner.batch.tasklet.CleanupPartitionsTasklet;
@@ -68,12 +69,14 @@ public class FilePartitionJobConfig {
 
     @Bean
     public Step partitionMasterStep(Step partitionWorkerStep, FilePartitioner filePartitioner,
-                                    TaskExecutor partitionTaskExecutor, PartitionSettings settings) {
+                                    TaskExecutor partitionTaskExecutor, PartitionSettings settings,
+                                    PartitionLinesListener partitionLinesListener) {
         return new StepBuilder(FilePartitionJob.PARTITION_MASTER_STEP, jobRepository)
                 .partitioner(FilePartitionJob.PARTITION_WORKER_STEP, filePartitioner)
                 .splitter(allPartitionsOnRestart(filePartitioner))
                 .partitionHandler(partitionHandler(partitionWorkerStep, partitionTaskExecutor, settings))
                 .listener(stepMetricsListener)
+                .listener(partitionLinesListener)
                 .build();
     }
 

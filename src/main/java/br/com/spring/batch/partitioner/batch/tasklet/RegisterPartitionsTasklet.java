@@ -6,7 +6,9 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import br.com.spring.batch.partitioner.batch.FilePartitionJob;
 import br.com.spring.batch.partitioner.batch.FileStepSupport;
+import br.com.spring.batch.partitioner.config.properties.AppProperties.PartitionSettings;
 import br.com.spring.batch.partitioner.model.document.ReceivedFileDocument;
 import br.com.spring.batch.partitioner.model.layout.FileLayout;
 import br.com.spring.batch.partitioner.model.partition.PartitionPlan;
@@ -21,6 +23,7 @@ import br.com.spring.batch.partitioner.support.log.StructuredLogger;
 import org.springframework.batch.core.scope.context.ChunkContext;
 import org.springframework.batch.core.step.StepContribution;
 import org.springframework.batch.core.step.tasklet.Tasklet;
+import org.springframework.batch.infrastructure.item.ExecutionContext;
 import org.springframework.batch.infrastructure.repeat.RepeatStatus;
 import org.springframework.stereotype.Component;
 
@@ -34,19 +37,23 @@ public class RegisterPartitionsTasklet implements Tasklet {
     private final BlobPaths paths;
     private final PartitionFileRepository partitions;
     private final FileLayout layout;
+    private final PartitionSettings settings;
 
     public RegisterPartitionsTasklet(FileStepSupport support, BlobStorage storage, BlobPaths paths,
-                                     PartitionFileRepository partitions, FileLayout layout) {
+                                     PartitionFileRepository partitions, FileLayout layout,
+                                     PartitionSettings settings) {
         this.support = support;
         this.storage = storage;
         this.paths = paths;
         this.partitions = partitions;
         this.layout = layout;
+        this.settings = settings;
     }
 
     @Override
     public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) {
         ReceivedFileDocument original = support.load(contribution, ChaosPoint.REGISTER);
+        requireAllLinesRead(contribution.getStepExecution().getJobExecution().getExecutionContext(), original);
         Map<String, BlobFile> uploaded = storage.list(paths.partitionPrefix(original)).stream()
                 .collect(Collectors.toMap(BlobFile::path, Function.identity()));
         Instant now = Instant.now();
@@ -62,10 +69,18 @@ public class RegisterPartitionsTasklet implements Tasklet {
         return RepeatStatus.FINISHED;
     }
 
+    private static void requireAllLinesRead(ExecutionContext job, ReceivedFileDocument original) {
+        long linesRead = job.getLong(FilePartitionJob.CONTEXT_DETAIL_LINES_READ, -1L);
+        if (linesRead != original.lineCount()) {
+            throw new IllegalStateException("partições leram " + linesRead + " linhas de detalhe; esperado "
+                    + original.lineCount());
+        }
+    }
+
     private ReceivedFileDocument toDocument(ReceivedFileDocument original, PartitionRange range,
                                             Map<String, BlobFile> uploaded, Instant now) {
         String path = paths.partitionPath(original, range.index());
-        long expectedSize = range.fileSizeBytes(layout);
+        long expectedSize = range.fileSizeBytes(layout, settings.writeTrailer());
         BlobFile blob = uploaded.get(path);
         if (blob == null || blob.sizeBytes() != expectedSize) {
             throw new IllegalStateException("partição " + path + " ausente ou incompleta no blob; esperado "

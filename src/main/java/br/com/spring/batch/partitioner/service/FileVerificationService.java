@@ -7,6 +7,7 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import br.com.spring.batch.partitioner.config.properties.AppProperties.PartitionSettings;
 import br.com.spring.batch.partitioner.model.document.ReceivedFileDocument;
 import br.com.spring.batch.partitioner.model.layout.FileLayout;
 import br.com.spring.batch.partitioner.repository.OriginalFileRepository;
@@ -25,10 +26,11 @@ public class FileVerificationService {
     private final BlobInspection blobs;
 
     public FileVerificationService(OriginalFileRepository originals, PartitionFileRepository partitions,
-                                   BlobStorage storage, BlobPaths paths, FileLayout layout) {
+                                   BlobStorage storage, BlobPaths paths, FileLayout layout,
+                                   PartitionSettings settings) {
         this.originals = originals;
         this.partitions = partitions;
-        this.blobs = new BlobInspection(storage, paths, layout);
+        this.blobs = new BlobInspection(storage, paths, layout, settings.writeTrailer());
     }
 
     public Optional<VerificationReport> verify(String fileId) {
@@ -60,7 +62,7 @@ public class FileVerificationService {
         }
     }
 
-    private record BlobInspection(BlobStorage storage, BlobPaths paths, FileLayout layout) {
+    private record BlobInspection(BlobStorage storage, BlobPaths paths, FileLayout layout, boolean writeTrailer) {
 
         Map<String, BlobFile> partitionBlobs(ReceivedFileDocument original) {
             if (!original.hasMovement()) {
@@ -75,7 +77,8 @@ public class FileVerificationService {
         }
 
         PartitionCheck check(ReceivedFileDocument original, ReceivedFileDocument partition, BlobFile blob) {
-            long expectedSize = layout.headerLineBytes() + partition.lineCount() * layout.detailLineBytes();
+            long expectedSize = layout.headerLineBytes() + partition.lineCount() * layout.detailLineBytes()
+                    + (writeTrailer ? layout.trailerLineBytes() : 0);
             boolean exists = blob != null;
             boolean sizeMatches = exists && blob.sizeBytes() == expectedSize;
             boolean headerMatches = exists && Arrays.equals(storage.read(blob.path(), layout.headerRange()),

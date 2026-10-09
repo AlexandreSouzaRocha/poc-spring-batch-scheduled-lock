@@ -59,8 +59,10 @@ class PartitionPlanTest {
         PartitionRange range = PartitionPlan.split(500, 4, LAYOUT).ranges().get(2);
 
         assertThat(PartitionRange.from(range.toExecutionContext())).isEqualTo(range);
-        assertThat(range.fileSizeBytes(LAYOUT))
+        assertThat(range.fileSizeBytes(LAYOUT, false))
                 .isEqualTo(LAYOUT.headerLineBytes() + range.lineCount() * LAYOUT.detailLineBytes());
+        assertThat(range.fileSizeBytes(LAYOUT, true))
+                .isEqualTo(range.fileSizeBytes(LAYOUT, false) + LAYOUT.trailerLineBytes());
         assertThat(range.stepName()).isEqualTo("partition0003");
     }
 

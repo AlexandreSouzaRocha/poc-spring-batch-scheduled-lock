@@ -24,6 +24,9 @@ public final class FilePartitionJob {
     public static final String CONTEXT_DETAIL_LINES_READ = "file.detailLinesRead";
     public static final String CONTEXT_TRAILER_RECORD_COUNT = "file.trailerRecordCount";
     public static final String CONTEXT_TRAILER_PROCESSING_DATE = "file.trailerProcessingDate";
+    public static final String CONTEXT_LINES_VERIFIED = "file.linesVerified";
+    public static final String CONTEXT_PARTITION_LINES_READ = "partition.linesRead";
+    public static final String CONTEXT_PARTITION_LINES_VERIFIED = "partition.linesVerified";
 
     private FilePartitionJob() {
     }

@@ -7,6 +7,8 @@ import br.com.spring.batch.partitioner.batch.partition.ServerSidePartitionCopy;
 import br.com.spring.batch.partitioner.batch.partition.StreamingPartitionCopy;
 import br.com.spring.batch.partitioner.config.properties.AppProperties;
 import br.com.spring.batch.partitioner.config.properties.AppProperties.BlobSettings;
+import br.com.spring.batch.partitioner.model.layout.DetailLineScanner;
+import br.com.spring.batch.partitioner.model.layout.FileLayout;
 import br.com.spring.batch.partitioner.storage.BlobStorage;
 import com.azure.core.http.HttpClient;
 import com.azure.core.http.netty.NettyAsyncHttpClientBuilder;
@@ -53,8 +55,9 @@ public class StorageConfig {
     @Bean
     @ConditionalOnProperty(prefix = "app.partition", name = "server-side-copy", havingValue = "false",
             matchIfMissing = true)
-    public PartitionCopy streamingPartitionCopy(BlobStorage storage, AppProperties properties) {
-        return new StreamingPartitionCopy(storage, (int) properties.blob().uploadBlockSizeBytes(),
+    public PartitionCopy streamingPartitionCopy(BlobStorage storage, FileLayout layout, AppProperties properties) {
+        return new StreamingPartitionCopy(storage, new DetailLineScanner(layout),
+                (int) properties.blob().uploadBlockSizeBytes(),
                 properties.partition().threadsPerPartition());
     }
 

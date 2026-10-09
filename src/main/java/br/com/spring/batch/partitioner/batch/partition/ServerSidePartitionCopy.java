@@ -2,6 +2,7 @@ package br.com.spring.batch.partitioner.batch.partition;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.OptionalLong;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -33,14 +34,19 @@ public class ServerSidePartitionCopy implements PartitionCopy {
     }
 
     @Override
-    public long copy(String sourcePath, ByteRange range, String targetPath, byte[] header, ProgressCounter progress) {
+    public CopyResult copy(String sourcePath, ByteRange range, PartitionTarget target, ProgressCounter progress) {
         String sourceUrl = storage.readableUrl(sourcePath, sourceUrlValidity);
         PartitionChunks chunks = PartitionChunks.of(range, threads, blockSizeBytes, FIRST_DATA_BLOCK_INDEX);
-        BlockList blocks = storage.openBlockList(targetPath);
-        blocks.stage(HEADER_BLOCK_INDEX, header, header.length);
+        BlockList blocks = storage.openBlockList(target.path());
+        blocks.stage(HEADER_BLOCK_INDEX, target.header(), target.header().length);
         long copiedBytes = stageChunks(sourceUrl, chunks.chunks(), blocks, progress);
-        blocks.commit(chunks.blockCount() + FIRST_DATA_BLOCK_INDEX);
-        return copiedBytes;
+        int blockCount = chunks.blockCount() + FIRST_DATA_BLOCK_INDEX;
+        if (target.hasTrailer()) {
+            blocks.stage(blockCount, target.trailer(), target.trailer().length);
+            blockCount++;
+        }
+        blocks.commit(blockCount);
+        return new CopyResult(copiedBytes, OptionalLong.empty());
     }
 
     private long stageChunks(String sourceUrl, List<Chunk> chunks, BlockList blocks,

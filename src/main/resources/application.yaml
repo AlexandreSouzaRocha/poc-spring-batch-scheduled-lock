@@ -65,6 +65,7 @@ app:
     progress-interval-seconds: ${APP_PARTITION_PROGRESS_INTERVAL_SECONDS:10}
     server-side-copy: ${APP_PARTITION_SERVER_SIDE_COPY:false}
     server-side-block-size-mb: ${APP_PARTITION_SERVER_SIDE_BLOCK_SIZE_MB:64}
+    write-trailer: ${APP_PARTITION_WRITE_TRAILER:true}
 
   kafka:
     topic: ${APP_KAFKA_TOPIC:movimentos-particionados}

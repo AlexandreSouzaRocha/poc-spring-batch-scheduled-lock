@@ -33,8 +33,8 @@ public record PartitionRange(int index, long firstLine, long lineCount, ByteRang
         return context;
     }
 
-    public long fileSizeBytes(FileLayout layout) {
-        return layout.headerLineBytes() + bytes.length();
+    public long fileSizeBytes(FileLayout layout, boolean withTrailer) {
+        return layout.headerLineBytes() + bytes.length() + (withTrailer ? layout.trailerLineBytes() : 0);
     }
 
     public String stepName() {

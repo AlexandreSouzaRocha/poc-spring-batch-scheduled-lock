@@ -8,6 +8,8 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.stream.IntStream;
 
+import br.com.spring.batch.partitioner.batch.partition.PartitionCopy.CopyResult;
+import br.com.spring.batch.partitioner.batch.partition.PartitionTarget;
 import br.com.spring.batch.partitioner.batch.partition.ServerSidePartitionCopy;
 import br.com.spring.batch.partitioner.batch.progress.PartitionProgressReporter;
 import br.com.spring.batch.partitioner.batch.progress.ProgressCounter;
@@ -35,6 +37,7 @@ class ServerSidePartitionCopyTest {
 
     private static final int BLOCK_SIZE = 1000;
     private static final byte[] HEADER = "H2026-09-18ABERTO \n".getBytes(StandardCharsets.UTF_8);
+    private static final byte[] TRAILER = "T0000000000000752026-09-19\n".getBytes(StandardCharsets.UTF_8);
     private static final String SOURCE_URL = "http://azurite:10000/conta/movimentos/origem.txt?sig=abc";
 
     private final List<StagedRange> staged = Collections.synchronizedList(new ArrayList<>());
@@ -49,11 +52,16 @@ class ServerSidePartitionCopyTest {
         givenSourceUrlAndRecordedBlocks();
         ServerSidePartitionCopy copy = new ServerSidePartitionCopy(storage, BLOCK_SIZE, threads, Duration.ofHours(1));
 
-        long copied = copy.copy("origem.txt", range, "destino.txt", HEADER, counter(range.length()));
+        CopyResult copied = copy.copy("origem.txt", range, new PartitionTarget("destino.txt", HEADER, TRAILER),
+                counter(range.length()));
 
         List<StagedRange> ordered = orderedRanges();
-        assertThat(copied).isEqualTo(range.length());
+        int lastDataBlock = ordered.getLast().blockIndex();
+        assertThat(copied.copiedBytes()).isEqualTo(range.length());
+        assertThat(copied.verifiedLines()).isEmpty();
         verify(blocks).stage(eq(0), eq(HEADER), eq(HEADER.length));
+        verify(blocks).stage(eq(lastDataBlock + 1), eq(TRAILER), eq(TRAILER.length));
+        verify(blocks).commit(lastDataBlock + 2);
         assertThat(ordered).allSatisfy(block -> assertThat(block.url()).isEqualTo(SOURCE_URL));
         assertThat(ordered.stream().map(block -> block.range().start()).toList()).isSorted();
         assertThat(ordered.getFirst().range().start()).isEqualTo(range.start());
@@ -79,7 +87,7 @@ class ServerSidePartitionCopyTest {
     }
 
     private static ProgressCounter counter(long totalBytes) {
-        PartitionSettings settings = new PartitionSettings(10, 3, 1, ConcurrencyControl.TYPE_LOCK, 4, 0, true, 64);
+        PartitionSettings settings = new PartitionSettings(10, 3, 1, ConcurrencyControl.TYPE_LOCK, 4, 0, true, 64, true);
         return new PartitionProgressReporter(new AppProperties(null, null, settings, null, null))
                 .track("file", 1, 1, totalBytes);
     }

@@ -99,7 +99,8 @@ public record AppProperties(
             @Min(1) int threadsPerPartition,
             @Min(0) int progressIntervalSeconds,
             boolean serverSideCopy,
-            @Min(1) int serverSideBlockSizeMb) {
+            @Min(1) int serverSideBlockSizeMb,
+            boolean writeTrailer) {
 
         private static final int MEGABYTE = 1024 * 1024;
 
