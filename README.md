@@ -30,7 +30,7 @@ Pré-requisitos: Docker e Docker Compose. Java 25 só é necessário para build 
 ```bash
 make up                                   # infra + generator (:8090) + partitioner-1 (:8081) + partitioner-2 (:8082)
 make generate LINES=5000000 TYPE=FECHADO  # gera o arquivo grande direto no blob (entrada/)
-make status                               # acompanha: PENDING -> PARTITIONING -> COMPLETED
+make status                               # acompanha os arquivos em PARTICIONANDO (no sucesso o arquivão sai da lista)
 make metrics                              # STEP_METRICS / JOB_METRICS (tempo de particionamento)
 make lock-check                           # ciclos por instância e overlaps=0
 make kafka-tail                           # mensagens publicadas
@@ -41,7 +41,7 @@ Testes automatizados:
 ```bash
 make test                                 # unitários + integração do lock (Testcontainers)
 make e2e LINES=5000000 FILES=2            # ponta a ponta com validações no blob, Mongo, Kafka e lock
-make chaos-test SCENARIO=all              # partition-fail, publish-fail, invalid-file, slow-io, kill-owner, zombie-owner
+make chaos-test SCENARIO=all              # partition-fail, publish-fail, invalid-file, trailer-mismatch, slow-io, kill-owner, zombie-owner
 make load-test SIZES="250"                # benchmark de um volume (reinicie o Docker antes)
 ```
 
@@ -56,27 +56,38 @@ Collections, índices, tópico do Kafka e container do blob são criados pelos c
 
 ```
 H2026-09-16ABERTO <sep>                     header: 'H' + yyyy-MM-dd + tipo (7 bytes, padding à direita)
-D0042000012345620...(150 bytes)<sep>        detalhe: 150 bytes fixos
+D0042000012345620...(150 bytes)<sep>        detalhe: 'D' + dados, 150 bytes fixos
+T0000000010000002026-09-17[<sep>]           trailer: 'T' + quantidade de linhas D (15 dígitos) + data de processamento
 ```
 
-Tipos: `ABERTO`, `FECHADO`, `SALDO`, `ULTIMA`. **Cada partição recebe uma cópia do header.**
+Tipos: `ABERTO`, `FECHADO`, `SALDO`, `ULTIMA`. Um único header na primeira linha, um único trailer na
+última e só linhas `D` no meio; a quebra depois do trailer é opcional. **Cada partição recebe uma
+cópia do header e um trailer próprio** (quantidade da partição + data do trailer original). No
+sucesso, os dados do trailer vão para a `indicador_processamento` e o documento do arquivão é
+removido da `gerenciamento_arquivo_recebido`. Ver
+[ARCHITECTURE.md](docs/ARCHITECTURE.md#layout-do-arquivo).
 
 ## Configuração principal
 
 | Propriedade | Env | Padrão | Descrição |
 |---|---|---|---|
 | `app.file.line-separator` | `APP_FILE_LINE_SEPARATOR` | `LF` | Quebra de linha do arquivo (`LF` ou `CRLF`) |
+| `app.file.header-length` | `APP_FILE_HEADER_LENGTH` | `18` | Bytes do header sem a quebra (mínimo 18) |
+| `app.file.detail-length` | `APP_FILE_DETAIL_LENGTH` | `150` | Bytes de cada linha de detalhe sem a quebra |
+| `app.file.trailer-length` | `APP_FILE_TRAILER_LENGTH` | `26` | Bytes do trailer sem a quebra (mínimo 26) |
+| `app.partition.write-trailer` | `APP_PARTITION_WRITE_TRAILER` | `true` | Grava o trailer em cada partição |
 | `app.partition.concurrency-control` | `APP_PARTITION_CONCURRENCY_CONTROL` | `TYPE_LOCK` | `TYPE_LOCK` (ShedLock por tipo de movimento) ou `GLOBAL_LOCK` (ShedLock único) |
 | `app.partition.count` | `APP_PARTITION_COUNT` | `10` | Arquivos gerados por arquivo grande |
-| `app.partition.max-attempts` | `APP_PARTITION_MAX_ATTEMPTS` | `3` | Tentativas antes de `FAILED` (o arquivo fica em `entrada/` para tratativa manual) |
+| `app.partition.max-attempts` | `APP_PARTITION_MAX_ATTEMPTS` | `3` | Tentativas antes de `FALHA` (o arquivo fica em `entrada/` para tratativa manual) |
 | `app.partition.max-concurrent-types` | `APP_PARTITION_MAX_CONCURRENT_TYPES` | `1` | Tipos de movimento processados em paralelo por instância |
 | `app.partition.threads-per-partition` | `APP_PARTITION_THREADS_PER_PARTITION` | `4` | Threads que enviam trechos da mesma partição |
 | `app.partition.progress-interval-seconds` | `APP_PARTITION_PROGRESS_INTERVAL_SECONDS` | `10` | Intervalo dos logs de progresso (`0` desliga) |
 | `app.scheduler.file-processing.interval` | `APP_SCHEDULER_INTERVAL` | `30s` | Intervalo do ciclo (polling + particionamento) |
 | `app.scheduler.file-processing.lock-at-most-for` | `APP_SCHEDULER_LOCK_AT_MOST_FOR` | `60s` | Validade do lock nos modos com ShedLock (renovada pelo keep-alive) |
 | `app.shedlock.fields.name` | `APP_SHEDLOCK_FIELD_NAME` | `_id` | Campo que guarda o nome do lock |
-| `app.shedlock.collection` | `APP_SHEDLOCK_COLLECTION` | `scheduler_locks` | Collection do lock |
-| `app.shedlock.fields.*` | `APP_SHEDLOCK_FIELD_*` | `_id`, `lock_until`, `locked_at`, `locked_by` | Nomes dos campos do lock |
+| `app.shedlock.collection` | `APP_SHEDLOCK_COLLECTION` | `bloqueio_agendamento` | Collection do lock |
+| `app.shedlock.fields.*` | `APP_SHEDLOCK_FIELD_*` | `_id`, `bloqueado_ate`, `bloqueado_em`, `bloqueado_por` | Nomes dos campos do lock |
+| `app.shedlock.locked-by` | `POD_NAME`, depois `HOSTNAME` | `local-instance` | Dono do lock; no Kubernetes, o nome do pod pela [Downward API](docs/ARCHITECTURE.md#dono-do-lock-no-kubernetes-downward-api) |
 | `app.blob.upload-block-size-mb` | `APP_BLOB_UPLOAD_BLOCK_SIZE_MB` | `8` | Tamanho do bloco de upload (memória por partição) |
 | `app.blob.read-block-size-mb` | `APP_BLOB_READ_BLOCK_SIZE_MB` | `8` | Tamanho das requisições de leitura do original |
 | `app.blob.try-timeout-seconds` | `APP_BLOB_TRY_TIMEOUT_SECONDS` | `60` | Teto de cada tentativa no SDK do Azure |
@@ -92,12 +103,13 @@ Kafka acontece dentro de transação do Mongo (ver [ARCHITECTURE.md](docs/ARCHIT
 
 | Método | Endpoint | Instância | Descrição |
 |---|---|---|---|
-| `POST` | `/generator/files?lines=&movementType=&movementDate=&files=&invalidHeader=` | generator | Gera arquivos grandes em `entrada/` |
+| `POST` | `/generator/files?lines=&movementType=&movementDate=&processingDate=&files=&defect=` | generator | Gera arquivos grandes em `entrada/`. `defect`: `NONE`, `HEADER`, `TRAILER`, `COUNT` (quantidade divergente) ou `DETAIL` (linha `H` no meio) |
 | `GET` | `/files?status=&limit=` | todas | Arquivos grandes mais recentes |
 | `GET` | `/files/summary` | todas | Contagem por status |
-| `GET` | `/files/{id}` | todas | Original, última execução (do JobRepository) e partições |
-| `GET` | `/files/{id}/verification` | todas | Conferência no blob (tamanho, header, publicação) |
-| `POST` | `/files/{id}/requeue` | todas | Devolve um arquivo `FAILED` para reprocessamento (tentativas zeradas) |
+| `GET` | `/files/{id}` | todas | Status, tentativas, original (enquanto existir), última execução (do JobRepository) e partições |
+| `GET` | `/files/{id}/verification` | todas | Conferência no blob (tamanho, header, trailer, publicação) |
+| `POST` | `/files/{id}/requeue` | todas | Devolve um arquivo `FALHA` para reprocessamento (tentativas zeradas) |
+| `GET` | `/indicators/{data}` | todas | Indicador de processamento da data do header |
 | `GET` | `/locks` | todas | Documentos de lock do ShedLock |
 | `PUT` / `DELETE` / `GET` | `/chaos` | particionadores | Injeção de falhas para teste de resiliência |
 | `GET` | `/actuator/prometheus` | todas | Timers `partitioner_step_duration` e `partitioner_job_duration` |

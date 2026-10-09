@@ -8,19 +8,23 @@ make test
 
 | Classe | O que cobre |
 |---|---|
-| `FileHeaderTest` | Parse e formatação do header posicional (os 4 tipos, padding e headers inválidos) |
-| `FileLayoutTest` | Contagem de linhas pelo tamanho, arquivo truncado e linha de detalhe de 150 bytes |
+| `LineTypeTest` | Reconhecimento de cada linha pelo indicador (`H`, `D`, `T`) e descrição de indicador desconhecido |
+| `FileHeaderTest` | Parse e formatação do header posicional (os 4 tipos, padding, header maior com preenchimento e headers inválidos) |
+| `FileTrailerTest` | Quantidade com 15 dígitos e data de processamento, com e sem quebra final, trailer maior completado com espaços e trailers inválidos |
+| `FileLayoutTest` | Contagem de linhas descontando header e trailer (com e sem quebra final), tamanhos configurados, posição do trailer, arquivo sem detalhe e tamanhos abaixo do mínimo |
+| `DetailLineScannerTest` | Conferência e contagem das linhas `D`, linhas atravessando blocos, `H`/`T` no meio, indicador desconhecido, quebra fora do lugar e CRLF |
 | `PartitionPlanTest` | Faixas contíguas, distribuição do resto, menos linhas que partições e ida e volta pelo `ExecutionContext` |
 | `BlobPathsTest` | Pastas `entrada/`, `processados/` e `<tipo>/` |
 | `FileIntakeServiceTest` | Identidade do arquivo pelo nome (mesmo nome = mesmo arquivo, independente do etag) e inclusão dos não concluídos que já saíram de `entrada/` |
 | `PartitionCycleServiceTest` | Agrupamento por tipo pelo nome do arquivo, sem descartar nenhum arquivo |
-| `StreamingPartitionCopyTest` / `ServerSidePartitionCopyTest` | Cópia paralela da faixa de bytes: conteúdo final idêntico com 1 a 8 threads (streaming) e blocos contíguos e em ordem (server-side) |
+| `StreamingPartitionCopyTest` / `ServerSidePartitionCopyTest` | Cópia paralela da faixa de bytes: header + faixa + trailer idênticos com 1 a 8 threads, partição sem trailer com a flag desligada e linha `H` no meio reprovada (streaming); blocos contíguos e em ordem, trailer no último bloco e sem conferência de linhas (server-side) |
 | `PartitionChunksTest` | Divisão da faixa em trechos alinhados ao bloco |
 | `BlockOutputStreamTest` | Blocos de tamanho fixo em ordem e nenhum commit sem `commit()` |
 | `ChaosRuleTest` | Regras de injeção de falha por tentativa e partição |
 | `ErrorSummaryTest` | Resumo de erro sem stack trace |
-| `OriginalFileRepositoryIntegrationTest` | MongoDB real (Testcontainers): documento com `attempts` na raiz e sem dados de execução; `_id` derivado do nome; nome repetido gera `DuplicateKeyException`; `PARTITIONING` interrompido e `FAILED_PARTITIONING` retomados com uma tentativa a mais; tentativas esgotadas viram `FAILED`; `FAILED` só volta via requeue; `COMPLETED` nunca é retomado |
-| `PartitionFileRepositoryIntegrationTest` | MongoDB real com replica set (Testcontainers): `replaceAll` transacional por arquivo, partições ordenadas por índice, pendentes de publicação e `deleteByParentFileId` só do arquivo |
+| `OriginalFileRepositoryIntegrationTest` | MongoDB real (Testcontainers): documento com `tentativas` na raiz, status `PARTICIONANDO` e `tipo` `ORIGINAL` gravados em português e sem dados de execução; `_id` derivado do nome; nome repetido gera `DuplicateKeyException`; `PARTICIONANDO` interrompido e `FALHA_PARTICIONAMENTO` retomados com uma tentativa a mais; tentativas esgotadas viram `FALHA`; `FALHA` só volta via requeue |
+| `PartitionFileRepositoryIntegrationTest` | MongoDB real com replica set (Testcontainers): `replaceAll` transacional por arquivo, partições ordenadas por índice, pendentes de publicação, `deleteByParentFileId` só do arquivo e valores gravados (`PARTICAO`, `CONCLUIDO`, `tentativas = 1`) |
+| `ProcessingIndicatorRepositoryIntegrationTest` | MongoDB real (Testcontainers): campos `data_processamento_movimento_<tipo>` e `quantidade_movimento_<tipo>` sob a data do header, reprocessamento sobrescrevendo e upserts concorrentes de tipos diferentes na mesma data |
 | `ConfigurableMongoLockProviderIntegrationTest` | MongoDB real (Testcontainers): exclusão mútua com nome em `_id` e em campo customizado, collection e campos customizados, `lockAtLeastFor`, extensão só pelo dono e lock expirado assumido por outra instância |
 
 ## Teste integrado ponta a ponta
@@ -35,12 +39,14 @@ make e2e LINES=5000000 FILES=2 TYPE=ABERTO
 1. Pede ao **generator** os arquivos grandes, que são enviados direto para `entrada/`.
 2. Aguarda o polling registrar cada arquivo e o particionamento terminar.
 3. Para cada arquivo, confere via `GET /files/{id}/verification`, que lê o próprio blob:
-   * status `COMPLETED` na primeira tentativa;
+   * status `CONCLUIDO` na primeira tentativa;
    * quantidade de partições no blob e no Mongo igual a `app.partition.count`;
    * soma das linhas das partições igual às linhas geradas;
-   * cada partição com tamanho exato, header idêntico ao do original e `published_at` preenchido;
+   * cada partição com tamanho exato, header idêntico ao do original, trailer próprio e `publicado_em` preenchido;
    * partições na pasta do tipo de movimento;
-   * original em `processados/` e ausente de `entrada/`.
+   * original em `processados/` e ausente de `entrada/`;
+   * documento do arquivão removido da `gerenciamento_arquivo_recebido`;
+   * `indicador_processamento` da data do header com a quantidade e a data do trailer.
 4. Confere que o tópico recebeu exatamente 1 mensagem por partição.
 5. Roda `lock-audit.py`: ciclos por instância e **nenhuma sobreposição** entre as duas.
 6. Imprime o `STEP_METRICS` e o `JOB_METRICS` de cada arquivo.
@@ -59,22 +65,23 @@ TODAS AS VALIDAÇÕES PASSARAM
 ## Resume e recovery (chaos)
 
 ```bash
-make chaos-test SCENARIO=all          # ou partition-fail | publish-fail | invalid-file | slow-io | kill-owner | zombie-owner
+make chaos-test SCENARIO=all          # ou partition-fail | publish-fail | invalid-file | trailer-mismatch | slow-io | kill-owner | zombie-owner
 LINES=2000000 ./scripts/chaos-test.sh kill-owner
 ```
 
 A falha é injetada nas duas instâncias via `PUT /chaos`, porque não se sabe qual delas vai obter o
-lock do tipo. Um arquivo em `FAILED` não bloqueia os demais, então os cenários rodam encadeados sem
+lock do tipo. Um arquivo em `FALHA` não bloqueia os demais, então os cenários rodam encadeados sem
 limpeza entre eles.
 
 | Cenário | Falha injetada | Validações |
 |---|---|---|
-| `partition-fail` | A partição 3 falha na 1ª tentativa, depois de gravada | `COMPLETED` na 2ª tentativa; o cleanup fez **rollback** das partições da 1ª tentativa; partições íntegras; Kafka só com as mensagens da tentativa bem-sucedida |
-| `publish-fail` | A publicação no Kafka falha na 1ª tentativa | `COMPLETED` na 2ª tentativa; cleanup **pulado**; cada partição gravada **uma única vez**; original movido uma única vez (resume a partir do `publishPartitionsStep`) |
-| `slow-io` | 90 s de atraso no worker (`PARTITION`), no `MOVE` e no `PUBLISH`, com o Mongo limitado a 60 s de transação | `COMPLETED` na 1ª tentativa; nenhum `NoSuchTransaction`; partições íntegras e publicadas |
-| `invalid-file` | Header com indicador `X` | `FAILED` sem retentativa; arquivo mantido em `entrada/`; nenhuma partição e nenhuma mensagem |
+| `partition-fail` | A partição 3 falha na 1ª tentativa, depois de gravada | `CONCLUIDO` na 2ª tentativa; o cleanup fez **rollback** das partições da 1ª tentativa; partições íntegras; Kafka só com as mensagens da tentativa bem-sucedida |
+| `publish-fail` | A publicação no Kafka falha na 1ª tentativa | `CONCLUIDO` na 2ª tentativa; cleanup **pulado**; cada partição gravada **uma única vez**; original movido uma única vez (resume a partir do `publishPartitionsStep`) |
+| `slow-io` | 90 s de atraso no worker (`PARTITION`), no `MOVE` e no `PUBLISH`, com o Mongo limitado a 60 s de transação | `CONCLUIDO` na 1ª tentativa; nenhum `NoSuchTransaction`; partições íntegras e publicadas |
+| `invalid-file` | Gerador com `defect=HEADER` (header com indicador `X`), `defect=TRAILER` (trailer com indicador `X`) e `defect=DETAIL` (linha `H` no meio dos detalhes) | `FALHA` sem retentativa; arquivo mantido em `entrada/`; nenhuma partição registrada e nenhuma mensagem |
+| `trailer-mismatch` | Gerador com `defect=COUNT` (quantidade do trailer = linhas + 1) | `CONCLUIDO`; `WARN` `file.trailer.mismatch`; partições íntegras; arquivão removido; indicador com a quantidade **do trailer** |
 | `zombie-owner` | Uma partição fica parada por 20 s e a instância que processa o arquivo é **congelada** com `docker pause` (não morre) até a outra concluir | O lock do tipo expira e a outra instância retoma e conclui; ao ser descongelada, a antiga não é mais a execução corrente no JobRepository: registra `file.ownership.lost`, não conclui o job, não altera o status e não publica no Kafka; partições íntegras |
-| `kill-owner` | Uma partição fica parada por 300 s e a instância que processa o arquivo recebe `docker kill` | O lock do tipo expira em até `lock-at-most-for`; a outra instância o adquire, encontra o arquivo em `PARTITIONING` e o retoma (`file.resume`), marca a execução órfã como `FAILED` (`execution.recover`), refaz o particionamento e termina `COMPLETED` |
+| `kill-owner` | Uma partição fica parada por 300 s e a instância que processa o arquivo recebe `docker kill` | O lock do tipo expira em até `lock-at-most-for`; a outra instância o adquire, encontra o arquivo em `PARTICIONANDO` e o retoma (`file.resume`), marca a execução órfã como `FAILED` (`execution.recover`), refaz o particionamento e termina `CONCLUIDO` |
 
 ### Manualmente
 
@@ -114,7 +121,7 @@ make load-test SIZES="50 100 200 250"        # benchmark, limpando o ambiente en
    e **aborta aquele tamanho** se o disco livre não cobrir, em vez de encher a VM do Docker.
 2. Zera o ambiente com `scripts/reset-data.sh` (`docker compose down -v` + `up`), então cada
    execução começa com blob, Mongo e Kafka vazios e o disco da execução anterior é devolvido.
-3. Gera o arquivo, aguarda `COMPLETED` (timeout proporcional ao tamanho) e coleta
+3. Gera o arquivo, aguarda `CONCLUIDO` (timeout proporcional ao tamanho) e coleta
    `STEP_METRICS`/`JOB_METRICS`, mensagens no Kafka, pico de memória dos containers
    (amostragem de `docker stats`) e o mínimo de disco livre durante a execução.
 4. Escreve a linha do resultado em `benchmarks/load-test-<timestamp>.md`.

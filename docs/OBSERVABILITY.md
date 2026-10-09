@@ -128,24 +128,34 @@ Eventos do ciclo (`context=file-intake` e `context=file-partitioning`), em ordem
 |---|---|---|
 | `poll.finish` | INFO | Fim da listagem: `listed` (em `entrada/`), `unfinished` (não concluídos no Mongo) e `files` (total do ciclo) |
 | `inbox.dispatch` / `inbox.finish` | INFO | Início e fim do ciclo, com `concurrencyControl` |
-| `file.register` | INFO | Arquivo novo inserido como `PARTITIONING` |
-| `file.resume` | WARN | Arquivo `PARTITIONING` interrompido ou `FAILED_PARTITIONING` retomado pelo dono do lock do tipo (`previousStatus`, `attempt`) |
+| `file.register` | INFO | Arquivo novo inserido como `PARTICIONANDO` |
+| `file.resume` | WARN | Arquivo `PARTICIONANDO` interrompido ou `FALHA_PARTICIONAMENTO` retomado pelo dono do lock do tipo (`previousStatus`, `attempt`) |
 | `file.concurrent` | WARN | `DuplicateKeyException` no insert do arquivo ou na criação da `JobInstance`; o ciclo segue para o próximo |
 | `execution.recover` | WARN | Execução presa em `STARTED` marcada como `FAILED` para o restart |
-| `file.fail` | WARN / ERROR | WARN com `status=FAILED_PARTITIONING` (vai ser retomado); ERROR com `status=FAILED` (aguarda tratativa manual). O erro vai no `data`, só no log: na collection ele não é gravado — está no JobRepository |
+| `file.fail` | WARN / ERROR | WARN com `status=FALHA_PARTICIONAMENTO` (vai ser retomado); ERROR com `status=FALHA` (aguarda tratativa manual). O erro vai no `data`, só no log: na collection ele não é gravado — está no JobRepository |
 | `file.ownership.lost` | WARN | A execução deixou de ser a corrente do arquivo no JobRepository (voltou de um congelamento); o job é interrompido e o status não é alterado |
-| `file.duplicate` | WARN | Arquivo com nome já `COMPLETED` reapareceu em `entrada/`; ignorado a cada ciclo até ser removido |
-| `file.skip` | DEBUG | Arquivo `FAILED` pulado no ciclo |
+| `file.duplicate` | WARN | Arquivo com nome já concluído no JobRepository reapareceu em `entrada/`; ignorado a cada ciclo até ser removido |
+| `file.skip` | DEBUG | Arquivo `FALHA` pulado no ciclo |
+
+Eventos do layout e do fim do arquivo (`context=partition-job`):
+
+| `operation` | Nível | Quando |
+|---|---|---|
+| `file.validate` | INFO | Header e trailer válidos: tipo, data do movimento, `lines`, `partitions`, `trailerRecordCount` e `processingDate` |
+| `file.trailer.mismatch` | WARN | Quantidade do trailer diferente das linhas de detalhe (`trailerRecordCount`, `lines`, `difference`); o processamento segue |
+| `partition.upload` | INFO | Partição enviada: `linesRead`, `lineCheck` (`verified` no streaming, `skipped` no server-side) e `trailer` |
+| `partition.lines` | INFO | Soma das linhas lidas pelos workers, sem header e trailer (`linesRead`, `detailLines`, `trailerRecordCount`) |
+| `file.finish` | INFO | Indicador de processamento atualizado e arquivão removido; `action=skip` quando ele já tinha sido removido |
 
 Os dados de cada execução (início, fim, duração, status, `exit_description`) estão em
 `batch_job_execution`, com o nome do arquivo no parâmetro `fileName`, e a última aparece em
 `GET /files/{id}` no campo `lastExecution`. Para acompanhar um arquivo com falha definitiva:
-`grep "file.fail.*status=FAILED"` e, depois da correção, `POST /files/{id}/requeue`.
+`grep "file.fail.*status=FALHA "` e, depois da correção, `POST /files/{id}/requeue`.
 
 ## Lock
 
 ```bash
-make locks        # documento de cada lock: dono (locked_by) e validade (lock_until)
+make locks        # documento de cada lock: dono (bloqueado_por) e validade (bloqueado_ate)
 make lock-check   # ciclos executados por instância e sobreposição entre elas (deve ser overlaps=0)
 ```
 
