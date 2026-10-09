@@ -7,6 +7,7 @@ import br.com.spring.batch.partitioner.model.document.MovementInfo;
 import br.com.spring.batch.partitioner.model.document.PartitioningInfo;
 import br.com.spring.batch.partitioner.model.document.ReceivedFileDocument;
 import br.com.spring.batch.partitioner.model.document.ReceivedFileFields;
+import br.com.spring.batch.partitioner.model.document.TrailerInfo;
 import br.com.spring.batch.partitioner.model.enums.FileStatus;
 
 import org.springframework.data.mongodb.core.FindAndModifyOptions;
@@ -47,10 +48,12 @@ public class OriginalFileRepositoryCustomImpl implements OriginalFileRepositoryC
     }
 
     @Override
-    public void recordInspection(String id, MovementInfo movement, PartitioningInfo partitioning) {
+    public void recordInspection(String id, MovementInfo movement, PartitioningInfo partitioning,
+                                 TrailerInfo trailer) {
         update(id, new Update()
                 .set(ReceivedFileFields.MOVEMENT, movement)
-                .set(ReceivedFileFields.PARTITIONING, partitioning));
+                .set(ReceivedFileFields.PARTITIONING, partitioning)
+                .set(ReceivedFileFields.TRAILER, trailer));
     }
 
     @Override

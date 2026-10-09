@@ -9,6 +9,7 @@ import br.com.spring.batch.partitioner.model.document.MovementInfo;
 import br.com.spring.batch.partitioner.model.document.PartitioningInfo;
 import br.com.spring.batch.partitioner.model.document.ReceivedFileDocument;
 import br.com.spring.batch.partitioner.model.document.ReceivedFileFields;
+import br.com.spring.batch.partitioner.model.document.TrailerInfo;
 import br.com.spring.batch.partitioner.model.enums.FileStatus;
 import br.com.spring.batch.partitioner.model.enums.MovementType;
 import br.com.spring.batch.partitioner.model.partition.ByteRange;
@@ -111,7 +112,7 @@ class PartitionFileRepositoryIntegrationTest {
         ReceivedFileDocument original = new ReceivedFileDocument(parentFileId, null, null, "MOV.txt",
                 FileStatus.PARTITIONING, 1, BlobLocation.received("entrada/MOV.txt", "etag", 1000),
                 new MovementInfo("H2026-09-16ABERTO ", MovementType.ABERTO, "2026-09-16"),
-                PartitioningInfo.ofOriginal(10, indexes.length), null);
+                new TrailerInfo(10, "2026-09-17"), PartitioningInfo.ofOriginal(10, indexes.length), null);
         return IntStream.of(indexes)
                 .mapToObj(index -> original.uploadedPartition(
                         new PartitionRange(index, index * 10L, 10, new ByteRange(index * 100L, index * 100L + 100)),

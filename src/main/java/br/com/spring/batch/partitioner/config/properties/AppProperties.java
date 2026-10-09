@@ -2,7 +2,9 @@ package br.com.spring.batch.partitioner.config.properties;
 
 import java.time.Duration;
 
+import br.com.spring.batch.partitioner.model.layout.FileHeader;
 import br.com.spring.batch.partitioner.model.layout.FileLayout;
+import br.com.spring.batch.partitioner.model.layout.FileTrailer;
 import br.com.spring.batch.partitioner.model.layout.LineSeparator;
 
 import jakarta.validation.Valid;
@@ -22,10 +24,14 @@ public record AppProperties(
         @Valid @NotNull KafkaSettings kafka,
         @Valid @NotNull FileSettings file) {
 
-    public record FileSettings(@NotNull LineSeparator lineSeparator) {
+    public record FileSettings(
+            @NotNull LineSeparator lineSeparator,
+            @Min(FileHeader.FIELDS_LENGTH) int headerLength,
+            @Min(1) int detailLength,
+            @Min(FileTrailer.FIELDS_LENGTH) int trailerLength) {
 
         public FileLayout layout() {
-            return new FileLayout(lineSeparator);
+            return new FileLayout(lineSeparator, headerLength, detailLength, trailerLength);
         }
     }
 

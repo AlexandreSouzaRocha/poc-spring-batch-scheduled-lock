@@ -24,6 +24,7 @@ public record ReceivedFileDocument(
         @Field(ReceivedFileFields.ATTEMPTS) Integer attempts,
         @Field(ReceivedFileFields.BLOB) BlobLocation blob,
         @Field(ReceivedFileFields.MOVEMENT) MovementInfo movement,
+        @Field(ReceivedFileFields.TRAILER) TrailerInfo trailer,
         @Field(ReceivedFileFields.PARTITIONING) PartitioningInfo partitioning,
         @Field(ReceivedFileFields.AUDIT) AuditInfo audit) {
 
@@ -34,7 +35,7 @@ public record ReceivedFileDocument(
     public static ReceivedFileDocument original(String fileName, BlobLocation blob, MovementInfo movement,
             Instant now) {
         return new ReceivedFileDocument(idOf(fileName), FileRole.ORIGINAL, null, fileName, FileStatus.PARTITIONING,
-                FIRST_ATTEMPT, blob, movement, null, AuditInfo.createdAt(now));
+                FIRST_ATTEMPT, blob, movement, null, null, AuditInfo.createdAt(now));
     }
 
     public static String idOf(String fileName) {
@@ -45,7 +46,7 @@ public record ReceivedFileDocument(
             long sizeBytes, Instant now) {
         return new ReceivedFileDocument(partitionId(range.index()), FileRole.PARTITION, id, fileName,
                 FileStatus.UPLOADED, FIRST_ATTEMPT, BlobLocation.written(blob.sourcePath(), path, sizeBytes),
-                movement, PartitioningInfo.ofPartition(range, partitioning.count()), AuditInfo.createdAt(now));
+                movement, trailer, PartitioningInfo.ofPartition(range, partitioning.count()), AuditInfo.createdAt(now));
     }
 
     public String partitionId(int partitionIndex) {

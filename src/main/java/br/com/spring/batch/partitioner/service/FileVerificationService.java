@@ -75,7 +75,7 @@ public class FileVerificationService {
         }
 
         PartitionCheck check(ReceivedFileDocument original, ReceivedFileDocument partition, BlobFile blob) {
-            long expectedSize = layout.headerLineBytes() + partition.lineCount() * layout.recordLineBytes();
+            long expectedSize = layout.headerLineBytes() + partition.lineCount() * layout.detailLineBytes();
             boolean exists = blob != null;
             boolean sizeMatches = exists && blob.sizeBytes() == expectedSize;
             boolean headerMatches = exists && Arrays.equals(storage.read(blob.path(), layout.headerRange()),

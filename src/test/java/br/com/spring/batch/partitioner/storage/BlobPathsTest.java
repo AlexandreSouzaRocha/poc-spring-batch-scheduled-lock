@@ -31,6 +31,6 @@ class BlobPathsTest {
         ReceivedFileDocument received = ReceivedFileDocument.original("MOV.txt",
                 BlobLocation.received("entrada/MOV.txt", "etag", 100), movement, Instant.now());
         return new ReceivedFileDocument("file-1", received.role(), null, received.fileName(), received.status(),
-                received.attempts(), received.blob(), movement, null, received.audit());
+                received.attempts(), received.blob(), movement, null, null, received.audit());
     }
 }

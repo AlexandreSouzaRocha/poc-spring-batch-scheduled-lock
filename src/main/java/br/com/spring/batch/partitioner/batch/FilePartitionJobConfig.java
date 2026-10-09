@@ -9,7 +9,7 @@ import br.com.spring.batch.partitioner.batch.tasklet.MoveOriginalTasklet;
 import br.com.spring.batch.partitioner.batch.tasklet.PartitionWriterTasklet;
 import br.com.spring.batch.partitioner.batch.tasklet.PublishPartitionsTasklet;
 import br.com.spring.batch.partitioner.batch.tasklet.RegisterPartitionsTasklet;
-import br.com.spring.batch.partitioner.batch.tasklet.ValidateHeaderTasklet;
+import br.com.spring.batch.partitioner.batch.tasklet.ValidateFileTasklet;
 import br.com.spring.batch.partitioner.config.properties.AppProperties.PartitionSettings;
 import br.com.spring.batch.partitioner.model.document.ReceivedFileDocument;
 import br.com.spring.batch.partitioner.model.layout.FileLayout;
@@ -45,8 +45,8 @@ public class FilePartitionJobConfig {
     }
 
     @Bean
-    public Step validateHeaderStep(ValidateHeaderTasklet tasklet) {
-        return taskletStep(FilePartitionJob.VALIDATE_HEADER_STEP, tasklet, false);
+    public Step validateFileStep(ValidateFileTasklet tasklet) {
+        return taskletStep(FilePartitionJob.VALIDATE_FILE_STEP, tasklet, false);
     }
 
     @Bean
@@ -93,11 +93,11 @@ public class FilePartitionJobConfig {
     }
 
     @Bean
-    public Job filePartitionJob(Step validateHeaderStep, Step cleanupPartitionsStep, Step partitionMasterStep,
+    public Job filePartitionJob(Step validateFileStep, Step cleanupPartitionsStep, Step partitionMasterStep,
                                 Step registerPartitionsStep, Step publishPartitionsStep, Step moveOriginalStep,
                                 FileStatusJobListener fileStatusJobListener, JobMetricsListener jobMetricsListener) {
         return new JobBuilder(FilePartitionJob.NAME, jobRepository)
-                .start(validateHeaderStep)
+                .start(validateFileStep)
                 .next(cleanupPartitionsStep)
                 .next(partitionMasterStep)
                 .next(registerPartitionsStep)

@@ -11,6 +11,7 @@ public final class ReceivedFileFields {
 
     public static final String BLOB = "blob";
     public static final String MOVEMENT = "movimento";
+    public static final String TRAILER = "trailer";
     public static final String PARTITIONING = "particionamento";
     public static final String AUDIT = "auditoria";
 
@@ -22,6 +23,9 @@ public final class ReceivedFileFields {
     public static final String HEADER = "header";
     public static final String TYPE = "tipo";
     public static final String DATE = "data";
+
+    public static final String RECORD_COUNT = "quantidade_registros";
+    public static final String PROCESSING_DATE = "data_processamento";
 
     public static final String INDEX = "indice";
     public static final String COUNT = "quantidade";

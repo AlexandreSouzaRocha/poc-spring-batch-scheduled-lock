@@ -4,6 +4,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ThreadLocalRandom;
 
 import br.com.spring.batch.partitioner.model.layout.FileLayout;
+import br.com.spring.batch.partitioner.model.layout.LineType;
 
 public final class DetailRecordBuilder {
 
@@ -24,14 +25,20 @@ public final class DetailRecordBuilder {
     private static final int DECIMAL_BASE = 10;
 
     private final byte[] line;
+    private final int detailLength;
 
     public DetailRecordBuilder(String movementDate, FileLayout layout) {
-        this.line = new byte[layout.recordLineBytes()];
-        line[0] = FileLayout.DETAIL_INDICATOR;
+        if (layout.detailLength() < FILLER_OFFSET) {
+            throw new IllegalArgumentException("o gerador precisa de linhas de detalhe com pelo menos "
+                    + FILLER_OFFSET + " bytes; configurado: " + layout.detailLength());
+        }
+        this.detailLength = layout.detailLength();
+        this.line = new byte[layout.detailLineBytes()];
+        line[0] = LineType.DETAIL.indicator();
         byte[] date = movementDate.getBytes(StandardCharsets.US_ASCII);
         System.arraycopy(date, 0, line, DATE_OFFSET, date.length);
         byte[] separator = layout.separator().bytes();
-        System.arraycopy(separator, 0, line, FileLayout.RECORD_LENGTH, separator.length);
+        System.arraycopy(separator, 0, line, detailLength, separator.length);
     }
 
     public byte[] next(long sequence) {
@@ -46,7 +53,7 @@ public final class DetailRecordBuilder {
     }
 
     private void fillRandomDigits(ThreadLocalRandom random) {
-        for (int position = FILLER_OFFSET; position < FileLayout.RECORD_LENGTH; position++) {
+        for (int position = FILLER_OFFSET; position < detailLength; position++) {
             line[position] = digit(random.nextInt(DECIMAL_BASE));
         }
     }

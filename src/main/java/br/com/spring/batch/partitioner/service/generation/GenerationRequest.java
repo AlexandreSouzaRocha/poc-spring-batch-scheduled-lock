@@ -9,6 +9,7 @@ import java.util.stream.IntStream;
 import br.com.spring.batch.partitioner.model.enums.MovementType;
 import br.com.spring.batch.partitioner.model.layout.FileHeader;
 import br.com.spring.batch.partitioner.model.layout.FileLayout;
+import br.com.spring.batch.partitioner.model.layout.FileTrailer;
 import br.com.spring.batch.partitioner.storage.BlobPaths;
 
 public record GenerationRequest(long lines, MovementType movementType, LocalDate movementDate, int files,
@@ -20,13 +21,21 @@ public record GenerationRequest(long lines, MovementType movementType, LocalDate
     private static final byte INVALID_INDICATOR = 'X';
 
     public FileHeader header() {
-        return new FileHeader(movementDate, movementType);
+        return FileHeader.of(movementDate, movementType, layout);
     }
 
     public byte[] headerLineBytes() {
         byte[] line = header().lineBytes(layout);
         line[0] = invalidHeader ? INVALID_INDICATOR : line[0];
         return line;
+    }
+
+    public FileTrailer trailer() {
+        return FileTrailer.of(lines, LocalDate.now(), layout);
+    }
+
+    public long sizeBytes() {
+        return layout.headerLineBytes() + lines * layout.detailLineBytes() + layout.trailerLineBytes();
     }
 
     public List<String> fileNames(long timestamp) {

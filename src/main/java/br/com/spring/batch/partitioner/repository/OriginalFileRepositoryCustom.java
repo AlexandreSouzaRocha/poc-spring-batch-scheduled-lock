@@ -5,6 +5,7 @@ import java.util.Optional;
 import br.com.spring.batch.partitioner.model.document.MovementInfo;
 import br.com.spring.batch.partitioner.model.document.PartitioningInfo;
 import br.com.spring.batch.partitioner.model.document.ReceivedFileDocument;
+import br.com.spring.batch.partitioner.model.document.TrailerInfo;
 
 public interface OriginalFileRepositoryCustom {
 
@@ -12,7 +13,7 @@ public interface OriginalFileRepositoryCustom {
 
     boolean failExhausted(String id, int maxAttempts);
 
-    void recordInspection(String id, MovementInfo movement, PartitioningInfo partitioning);
+    void recordInspection(String id, MovementInfo movement, PartitioningInfo partitioning, TrailerInfo trailer);
 
     void relocate(String id, String currentPath);
 

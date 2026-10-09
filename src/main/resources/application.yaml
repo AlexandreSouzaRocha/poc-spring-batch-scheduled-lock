@@ -52,6 +52,9 @@ app:
 
   file:
     line-separator: ${APP_FILE_LINE_SEPARATOR:LF}
+    header-length: ${APP_FILE_HEADER_LENGTH:18}
+    detail-length: ${APP_FILE_DETAIL_LENGTH:150}
+    trailer-length: ${APP_FILE_TRAILER_LENGTH:26}
 
   partition:
     count: ${APP_PARTITION_COUNT:10}

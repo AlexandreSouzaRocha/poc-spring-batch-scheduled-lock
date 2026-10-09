@@ -52,7 +52,7 @@ public class FileGeneratorService {
         FileHeader header = request.header();
         long start = System.currentTimeMillis();
         writeContent(path, request);
-        long sizeBytes = request.layout().headerLineBytes() + lines * request.layout().recordLineBytes();
+        long sizeBytes = request.sizeBytes();
         Throughput throughput = new Throughput(new StepVolume(lines, sizeBytes),
                 Duration.ofMillis(System.currentTimeMillis() - start));
         log.info("file.generate").field("fileName", fileName).field("lines", lines).field("sizeBytes", sizeBytes)
@@ -68,6 +68,7 @@ public class FileGeneratorService {
         try (BlockOutputStream output = storage.openOutput(path)) {
             output.write(request.headerLineBytes());
             writeRecords(output, records, request.lines());
+            output.write(request.trailer().lineBytes(request.layout()));
             output.commit();
         } catch (IOException e) {
             throw new UncheckedIOException(e);
