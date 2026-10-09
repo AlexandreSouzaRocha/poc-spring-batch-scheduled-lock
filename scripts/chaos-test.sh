@@ -24,10 +24,10 @@ partition_fail() {
   chaos_on "point=PARTITION&action=FAIL&onAttempt=1&partitionIndex=3"
   name=$(generate_one FECHADO)
   id=$(wait_file_registered "$name" 120)
-  status=$(wait_file_status "$id" "COMPLETED FAILED" 600)
+  status=$(wait_file_status "$id" "CONCLUIDO FALHA" 600)
   chaos_off
   partitions=$(file_field "$id" "d['file']['partitioning']['count']")
-  check "status COMPLETED ($status)" "$([ "$status" = "COMPLETED" ] && echo true || echo false)"
+  check "status CONCLUIDO ($status)" "$([ "$status" = "CONCLUIDO" ] && echo true || echo false)"
   check "concluído na 2ª tentativa" "$(file_field "$id" "str(d['file']['attempts'] == 2).lower()")"
   check "cleanup fez rollback das partições da 1ª tentativa" "$([ "$(count_logs "$start" "partition.cleanup.*fileId=$id.*action=rollback")" -ge 1 ] && echo true || echo false)"
   check "partições íntegras após reprocessamento" "$(verification_field "$id" "d['allPartitionsValid'] and d['partitionBlobs'] == $partitions")"
@@ -43,10 +43,10 @@ publish_fail() {
   chaos_on "point=PUBLISH&action=FAIL&onAttempt=1"
   name=$(generate_one SALDO)
   id=$(wait_file_registered "$name" 120)
-  status=$(wait_file_status "$id" "COMPLETED FAILED" 600)
+  status=$(wait_file_status "$id" "CONCLUIDO FALHA" 600)
   chaos_off
   partitions=$(file_field "$id" "d['file']['partitioning']['count']")
-  check "status COMPLETED ($status)" "$([ "$status" = "COMPLETED" ] && echo true || echo false)"
+  check "status CONCLUIDO ($status)" "$([ "$status" = "CONCLUIDO" ] && echo true || echo false)"
   check "concluído na 2ª tentativa" "$(file_field "$id" "str(d['file']['attempts'] == 2).lower()")"
   check "cleanup pulado (particionamento já concluído)" "$([ "$(count_logs "$start" "partition.cleanup.*fileId=$id.*action=skip")" -ge 1 ] && echo true || echo false)"
   check "partições enviadas ao blob uma única vez" "$([ "$(count_logs "$start" "partition.upload.*fileId=$id")" -eq "$partitions" ] && echo true || echo false)"
@@ -68,8 +68,8 @@ kill_owner() {
   info "matando a instância que processa o arquivo: $owner"
   docker kill "psl-$owner" >/dev/null
   survivor=$([ "$owner" = "partitioner-1" ] && echo partitioner-2 || echo partitioner-1)
-  status=$(wait_file_status "$id" "COMPLETED FAILED" 600)
-  check "status COMPLETED após falha do dono ($status)" "$([ "$status" = "COMPLETED" ] && echo true || echo false)"
+  status=$(wait_file_status "$id" "CONCLUIDO FALHA" 600)
+  check "status CONCLUIDO após falha do dono ($status)" "$([ "$status" = "CONCLUIDO" ] && echo true || echo false)"
   check "retomado pela outra instância após o lock expirar ($survivor)" "$([ "$(docker logs --since "$start" "psl-$survivor" 2>&1 | grep -c "file.resume.*fileId=$id")" -ge 1 ] && echo true || echo false)"
   check "retomado pela outra instância ($survivor)" "$([ "$(docker logs --since "$start" "psl-$survivor" 2>&1 | grep -c "job.metrics.*fileId=$id.*status=COMPLETED")" -ge 1 ] && echo true || echo false)"
   check "execução órfã recuperada (STARTED -> FAILED)" "$([ "$(docker logs --since "$start" "psl-$survivor" 2>&1 | grep -c "execution.recover.*fileId=$id")" -ge 1 ] && echo true || echo false)"
@@ -93,7 +93,7 @@ zombie_owner() {
   survivor=$([ "$owner" = "partitioner-1" ] && echo partitioner-2 || echo partitioner-1)
   info "congelando $owner (processo e keep-alive do lock parados, sem morrer)"
   docker pause "psl-$owner" >/dev/null
-  status=$(wait_file_status "$id" "COMPLETED FAILED" 600)
+  status=$(wait_file_status "$id" "CONCLUIDO FALHA" 600)
   info "descongelando $owner"
   docker unpause "psl-$owner" >/dev/null
   local deadline=$((SECONDS + 120))
@@ -101,11 +101,11 @@ zombie_owner() {
   sleep 10
   chaos_off
   partitions=$(file_field "$id" "d['file']['partitioning']['count']")
-  check "concluído pela outra instância enquanto $owner estava congelada ($status)" "$([ "$status" = "COMPLETED" ] && echo true || echo false)"
+  check "concluído pela outra instância enquanto $owner estava congelada ($status)" "$([ "$status" = "CONCLUIDO" ] && echo true || echo false)"
   check "retomado por $survivor após o lock expirar" "$([ "$(docker logs --since "$start" "psl-$survivor" 2>&1 | grep -c "file.resume.*fileId=$id")" -ge 1 ] && echo true || echo false)"
   check "zumbi ($owner) detectou a perda de posse" "$([ "$(docker logs --since "$start" "psl-$owner" 2>&1 | grep -c "file.ownership.lost.*fileId=$id")" -ge 1 ] && echo true || echo false)"
   check "zumbi não concluiu o job" "$([ "$(docker logs --since "$start" "psl-$owner" 2>&1 | grep -c "job.metrics.*fileId=$id.*status=COMPLETED")" -eq 0 ] && echo true || echo false)"
-  check "status continua COMPLETED depois que o zumbi voltou" "$(file_field "$id" "str(d['file']['status'] == 'COMPLETED').lower()")"
+  check "status continua CONCLUIDO depois que o zumbi voltou" "$(file_field "$id" "str(d['file']['status'] == 'CONCLUIDO').lower()")"
   check "2 tentativas (original + retomada)" "$(file_field "$id" "str(d['file']['attempts'] == 2).lower()")"
   check "partições íntegras" "$(verification_field "$id" "d['allPartitionsValid'] and d['partitionBlobs'] == $partitions")"
   check "Kafka recebeu $partitions mensagens (zumbi não publicou)" "$([ $(( $(kafka_count) - kafka_before )) -eq "$partitions" ] && echo true || echo false)"
@@ -119,9 +119,9 @@ slow_io_at() {
   chaos_on "point=$point&action=DELAY&onAttempt=1&delaySeconds=90"
   name=$(generate_one "$type")
   id=$(wait_file_registered "$name" 120)
-  result=$(wait_file_status "$id" "COMPLETED FAILED" 600)
+  result=$(wait_file_status "$id" "CONCLUIDO FALHA" 600)
   chaos_off
-  check "status COMPLETED ($result)" "$([ "$result" = "COMPLETED" ] && echo true || echo false)"
+  check "status CONCLUIDO ($result)" "$([ "$result" = "CONCLUIDO" ] && echo true || echo false)"
   check "concluído na 1ª tentativa" "$(file_field "$id" "str(d['file']['attempts'] == 1).lower()")"
   check "atraso de 90s aplicado em $point" "$([ "$(count_logs "$start" "chaos.delay.*point=$point.*fileId=$id")" -ge 1 ] && echo true || echo false)"
   check "nenhuma transação do Mongo abortada" "$([ "$(count_logs "$start" "NoSuchTransaction")" -eq 0 ] && echo true || echo false)"
@@ -135,14 +135,14 @@ slow_io() {
 }
 
 invalid_file() {
-  info "CENÁRIO invalid-file: header inválido -> FAILED imediato, sem retentativa, arquivo mantido em entrada/"
+  info "CENÁRIO invalid-file: header inválido -> FALHA imediata, sem retentativa, arquivo mantido em entrada/"
   setup
   local kafka_before name id status
   kafka_before=$(kafka_count)
   name=$(generate_one ABERTO "&invalidHeader=true")
   id=$(wait_file_registered "$name" 120)
-  status=$(wait_file_status "$id" "COMPLETED FAILED" 300)
-  check "status FAILED ($status)" "$([ "$status" = "FAILED" ] && echo true || echo false)"
+  status=$(wait_file_status "$id" "CONCLUIDO FALHA" 300)
+  check "status FALHA ($status)" "$([ "$status" = "FALHA" ] && echo true || echo false)"
   check "sem retentativas (1 tentativa)" "$(file_field "$id" "str(d['file']['attempts'] == 1).lower()")"
   check "arquivo mantido em entrada/" "$(verification_field "$id" "d['currentPath'].startswith('entrada/') and d['currentPathExists']")"
   check "nenhuma partição criada" "$(verification_field "$id" "d['partitionDocuments'] == 0")"

@@ -27,7 +27,7 @@ public record ReceivedFileDocument(
         @Field(ReceivedFileFields.PARTITIONING) PartitioningInfo partitioning,
         @Field(ReceivedFileFields.AUDIT) AuditInfo audit) {
 
-    public static final String COLLECTION = "received_file_management";
+    public static final String COLLECTION = "gerenciamento_arquivo_recebido";
 
     private static final int FIRST_ATTEMPT = 1;
 
@@ -44,7 +44,7 @@ public record ReceivedFileDocument(
     public ReceivedFileDocument uploadedPartition(PartitionRange range, String fileName, String path,
             long sizeBytes, Instant now) {
         return new ReceivedFileDocument(partitionId(range.index()), FileRole.PARTITION, id, fileName,
-                FileStatus.UPLOADED, null, BlobLocation.written(blob.sourcePath(), path, sizeBytes),
+                FileStatus.UPLOADED, FIRST_ATTEMPT, BlobLocation.written(blob.sourcePath(), path, sizeBytes),
                 movement, PartitioningInfo.ofPartition(range, partitioning.count()), AuditInfo.createdAt(now));
     }
 

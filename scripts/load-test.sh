@@ -136,7 +136,7 @@ run_size() {
     return
   fi
 
-  status=$(wait_file_status "$id" "COMPLETED FAILED" "$timeout")
+  status=$(wait_file_status "$id" "CONCLUIDO FALHA" "$timeout")
   stop_sampler
   collect_result "$size" "$lines" "$file_gb" "$generation_seconds" "$start" "$id" "$status" "$kafka_before"
 }

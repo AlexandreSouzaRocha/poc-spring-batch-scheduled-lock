@@ -8,11 +8,13 @@ import br.com.spring.batch.partitioner.model.document.BlobLocation;
 import br.com.spring.batch.partitioner.model.document.MovementInfo;
 import br.com.spring.batch.partitioner.model.document.PartitioningInfo;
 import br.com.spring.batch.partitioner.model.document.ReceivedFileDocument;
+import br.com.spring.batch.partitioner.model.document.ReceivedFileFields;
 import br.com.spring.batch.partitioner.model.enums.FileStatus;
 import br.com.spring.batch.partitioner.model.enums.MovementType;
 import br.com.spring.batch.partitioner.model.partition.ByteRange;
 import br.com.spring.batch.partitioner.model.partition.PartitionRange;
 import com.mongodb.client.MongoClients;
+import org.bson.Document;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.testcontainers.junit.jupiter.Container;
@@ -36,13 +38,14 @@ class PartitionFileRepositoryIntegrationTest {
     @Container
     private static final MongoDBContainer MONGO = new MongoDBContainer("mongo:7").withReplicaSet();
 
+    private MongoTemplate mongoTemplate;
     private PartitionFileRepository repository;
 
     @BeforeEach
     void setUp() {
         SimpleMongoClientDatabaseFactory factory = new SimpleMongoClientDatabaseFactory(
                 MongoClients.create(MONGO.getConnectionString()), "partition_test");
-        MongoTemplate mongoTemplate = new MongoTemplate(factory);
+        mongoTemplate = MongoTestTemplates.withApplicationConversions(factory);
         mongoTemplate.dropCollection(ReceivedFileDocument.COLLECTION);
         mongoTemplate.createCollection(ReceivedFileDocument.COLLECTION);
         repository = new MongoRepositoryFactory(mongoTemplate).getRepository(PartitionFileRepository.class,
@@ -78,6 +81,21 @@ class PartitionFileRepositoryIntegrationTest {
                     assertThat(published.status()).isEqualTo(FileStatus.COMPLETED);
                     assertThat(published.audit().publishedAt()).isNotNull();
                 });
+    }
+
+    @Test
+    void storesRoleStatusAndAttemptsWithPortugueseValues() {
+        List<ReceivedFileDocument> partitions = partitionsOf(PARENT, 1);
+        repository.replaceAll(PARENT, partitions);
+        repository.completePublished(List.of(partitions.getFirst().id()), Instant.now());
+
+        Document stored = mongoTemplate.findById(partitions.getFirst().id(), Document.class,
+                ReceivedFileDocument.COLLECTION);
+
+        assertThat(stored.getString(ReceivedFileFields.ROLE)).isEqualTo("PARTICAO");
+        assertThat(stored.getString(ReceivedFileFields.STATUS)).isEqualTo("CONCLUIDO");
+        assertThat(stored.getInteger(ReceivedFileFields.ATTEMPTS)).isEqualTo(1);
+        assertThat(stored.getString(ReceivedFileFields.PARENT_FILE_ID)).isEqualTo(PARENT);
     }
 
     @Test

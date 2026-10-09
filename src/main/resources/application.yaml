@@ -76,14 +76,14 @@ app:
       lock-at-least-for: ${APP_SCHEDULER_LOCK_AT_LEAST_FOR:20s}
 
   shedlock:
-    collection: ${APP_SHEDLOCK_COLLECTION:scheduler_locks}
-    locked-by: ${HOSTNAME:local-instance}
+    collection: ${APP_SHEDLOCK_COLLECTION:bloqueio_agendamento}
+    locked-by: ${POD_NAME:${HOSTNAME:local-instance}}
     default-lock-at-most-for: 60s
     fields:
       name: ${APP_SHEDLOCK_FIELD_NAME:_id}
-      lock-until: ${APP_SHEDLOCK_FIELD_LOCK_UNTIL:lock_until}
-      locked-at: ${APP_SHEDLOCK_FIELD_LOCKED_AT:locked_at}
-      locked-by: ${APP_SHEDLOCK_FIELD_LOCKED_BY:locked_by}
+      lock-until: ${APP_SHEDLOCK_FIELD_LOCK_UNTIL:bloqueado_ate}
+      locked-at: ${APP_SHEDLOCK_FIELD_LOCKED_AT:bloqueado_em}
+      locked-by: ${APP_SHEDLOCK_FIELD_LOCKED_BY:bloqueado_por}
 
 management:
   endpoints:

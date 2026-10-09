@@ -1,9 +1,9 @@
-const SHEDLOCK_COLLECTION = process.env.SHEDLOCK_COLLECTION || "scheduler_locks";
+const SHEDLOCK_COLLECTION = process.env.SHEDLOCK_COLLECTION || "bloqueio_agendamento";
 const SHEDLOCK_NAME_FIELD = process.env.SHEDLOCK_NAME_FIELD || "_id";
 
 const BATCH_COLLECTIONS = ["batch_job_instance", "batch_job_execution", "batch_step_execution", "batch_sequences"];
 const BATCH_SEQUENCES = ["batch_job_instance_seq", "batch_job_execution_seq", "batch_step_execution_seq"];
-const FILE_COLLECTION = "received_file_management";
+const FILE_COLLECTION = "gerenciamento_arquivo_recebido";
 
 function createCollection(name) {
   if (!db.getCollectionNames().includes(name)) {
@@ -26,11 +26,11 @@ BATCH_SEQUENCES.forEach(function (sequence) {
 });
 print("[sequences]   batch_sequences com " + BATCH_SEQUENCES.length + " contadores");
 
-createIndex(FILE_COLLECTION, { role: 1, status: 1, "audit.created_at": 1 }, { name: "role_status_created_at" });
+createIndex(FILE_COLLECTION, { tipo: 1, status: 1, "auditoria.criado_em": 1 }, { name: "tipo_status_criado_em" });
 createIndex("batch_job_instance", { job_name: 1, job_key: 1 },
   { name: "job_name_job_key_unique", unique: true });
-createIndex(FILE_COLLECTION, { parent_file_id: 1, "partitioning.index": 1 },
-  { name: "parent_file_id_partition_index" });
+createIndex(FILE_COLLECTION, { id_arquivo_pai: 1, "particionamento.indice": 1 },
+  { name: "id_arquivo_pai_particionamento_indice" });
 
 if (SHEDLOCK_NAME_FIELD !== "_id") {
   const keys = {};

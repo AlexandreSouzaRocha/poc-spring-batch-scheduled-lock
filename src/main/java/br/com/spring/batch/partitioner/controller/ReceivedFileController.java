@@ -1,5 +1,6 @@
 package br.com.spring.batch.partitioner.controller;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -45,9 +46,9 @@ public class ReceivedFileController {
     }
 
     @GetMapping
-    public List<ReceivedFileDocument> list(@RequestParam Optional<FileStatus> status,
+    public List<ReceivedFileDocument> list(@RequestParam Optional<String> status,
                                            @RequestParam(defaultValue = "50") int limit) {
-        return originals.findRecent(status, Math.min(limit, MAX_LIMIT));
+        return originals.findRecent(status.map(FileStatus::fromValue), Math.min(limit, MAX_LIMIT));
     }
 
     @PostMapping("/{id}/requeue")
@@ -56,8 +57,10 @@ public class ReceivedFileController {
     }
 
     @GetMapping("/summary")
-    public Map<FileStatus, Long> summary() {
-        return originals.countByStatus();
+    public Map<String, Long> summary() {
+        Map<String, Long> summary = new LinkedHashMap<>();
+        originals.countByStatus().forEach((status, count) -> summary.put(status.value(), count));
+        return summary;
     }
 
     @GetMapping("/{id}")

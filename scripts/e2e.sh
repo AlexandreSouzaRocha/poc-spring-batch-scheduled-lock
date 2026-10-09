@@ -25,12 +25,12 @@ TOTAL_PARTITIONS=0
 for NAME in $NAMES; do
   info "aguardando registro de $NAME pelo polling"
   ID=$(wait_file_registered "$NAME" 120)
-  check "arquivo registrado na received_file_management" "$([ -n "$ID" ] && echo true || echo false)"
+  check "arquivo registrado na gerenciamento_arquivo_recebido" "$([ -n "$ID" ] && echo true || echo false)"
   [ -z "$ID" ] && continue
 
   info "aguardando particionamento de $ID"
-  STATUS=$(wait_file_status "$ID" "COMPLETED FAILED" "$TIMEOUT_SECONDS")
-  check "status final COMPLETED (obtido: $STATUS)" "$([ "$STATUS" = "COMPLETED" ] && echo true || echo false)"
+  STATUS=$(wait_file_status "$ID" "CONCLUIDO FALHA" "$TIMEOUT_SECONDS")
+  check "status final CONCLUIDO (obtido: $STATUS)" "$([ "$STATUS" = "CONCLUIDO" ] && echo true || echo false)"
 
   PARTITIONS=$(file_field "$ID" "d['file']['partitioning']['count']")
   TOTAL_PARTITIONS=$((TOTAL_PARTITIONS + PARTITIONS))

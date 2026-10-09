@@ -41,7 +41,7 @@ class OriginalFileRepositoryIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        mongoTemplate = new MongoTemplate(new SimpleMongoClientDatabaseFactory(
+        mongoTemplate = MongoTestTemplates.withApplicationConversions(new SimpleMongoClientDatabaseFactory(
                 MongoClients.create(MONGO.getConnectionString()), "intake_test"));
         mongoTemplate.dropCollection(ReceivedFileDocument.COLLECTION);
         repository = new MongoRepositoryFactory(mongoTemplate).getRepository(OriginalFileRepository.class,
@@ -55,7 +55,8 @@ class OriginalFileRepositoryIntegrationTest {
 
         Document stored = mongoTemplate.findById(original.id(), Document.class, ReceivedFileDocument.COLLECTION);
 
-        assertThat(stored.getString(ReceivedFileFields.STATUS)).isEqualTo("PARTITIONING");
+        assertThat(stored.getString(ReceivedFileFields.STATUS)).isEqualTo("PARTICIONANDO");
+        assertThat(stored.getString(ReceivedFileFields.ROLE)).isEqualTo("ORIGINAL");
         assertThat(stored.getInteger(ReceivedFileFields.ATTEMPTS)).isEqualTo(1);
         assertThat(stored).doesNotContainKey("execution");
         assertThat(stored.get(ReceivedFileFields.AUDIT, Document.class)).doesNotContainKey("completed_at");

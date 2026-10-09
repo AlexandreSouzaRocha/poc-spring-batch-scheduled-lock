@@ -2,6 +2,7 @@ package br.com.spring.batch.partitioner.config;
 
 import java.util.concurrent.Executors;
 
+import br.com.spring.batch.partitioner.repository.MongoEnumConversions;
 import br.com.spring.batch.partitioner.repository.batch.CustomJobRepositoryFactoryBean;
 import br.com.spring.batch.partitioner.support.log.RequestContext;
 import jakarta.annotation.Nonnull;
@@ -17,6 +18,7 @@ import org.springframework.core.task.support.TaskExecutorAdapter;
 import org.springframework.data.mongodb.MongoDatabaseFactory;
 import org.springframework.data.mongodb.MongoTransactionManager;
 import org.springframework.data.mongodb.core.convert.MappingMongoConverter;
+import org.springframework.data.mongodb.core.convert.MongoCustomConversions;
 
 @Configuration
 public class BatchConfig extends MongoDefaultBatchConfiguration {
@@ -42,6 +44,11 @@ public class BatchConfig extends MongoDefaultBatchConfiguration {
         } catch (Exception e) {
             throw new BatchConfigurationException("Unable to configure the custom job repository", e);
         }
+    }
+
+    @Bean
+    public MongoCustomConversions mongoCustomConversions() {
+        return MongoEnumConversions.create();
     }
 
     @Bean

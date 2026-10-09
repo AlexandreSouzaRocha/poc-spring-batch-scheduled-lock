@@ -41,7 +41,7 @@ public class FileVerificationService {
         List<PartitionCheck> checks = documents.stream()
                 .map(partition -> blobs.check(original, partition, partitionBlobs.get(partition.currentPath())))
                 .toList();
-        return new VerificationReport(original.id(), original.status().name(), original.currentPath(),
+        return new VerificationReport(original.id(), original.status().value(), original.currentPath(),
                 blobs.exists(original.currentPath()), blobs.exists(original.blob().sourcePath()),
                 partitionBlobs.size(), documents.size(), checks.stream().mapToLong(PartitionCheck::lines).sum(),
                 checks.stream().allMatch(PartitionCheck::valid), checks);

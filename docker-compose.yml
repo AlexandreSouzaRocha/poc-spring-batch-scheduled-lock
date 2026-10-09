@@ -109,7 +109,7 @@ services:
     environment:
       MONGO_DATABASE: partitioner_batch
       BATCH_RETENTION_DAYS: ${BATCH_RETENTION_DAYS:-7}
-      APP_SHEDLOCK_COLLECTION: ${APP_SHEDLOCK_COLLECTION:-scheduler_locks}
+      APP_SHEDLOCK_COLLECTION: ${APP_SHEDLOCK_COLLECTION:-bloqueio_agendamento}
       APP_SHEDLOCK_FIELD_NAME: ${APP_SHEDLOCK_FIELD_NAME:-_id}
     volumes:
       - ./docker:/init:ro
