@@ -12,13 +12,14 @@ import br.com.spring.batch.partitioner.model.layout.FileLayout;
 import br.com.spring.batch.partitioner.model.layout.FileTrailer;
 import br.com.spring.batch.partitioner.storage.BlobPaths;
 
-public record GenerationRequest(long lines, MovementType movementType, LocalDate movementDate, int files,
-                                boolean invalidHeader, FileLayout layout) {
+public record GenerationRequest(long lines, MovementType movementType, LocalDate movementDate,
+                                LocalDate processingDate, int files, GenerationDefect defect, FileLayout layout) {
 
     private static final DateTimeFormatter NAME_DATE = DateTimeFormatter.ofPattern("yyyy.MM.dd");
     private static final DateTimeFormatter NAME_TIME = DateTimeFormatter.ofPattern("HH.mm.ss");
     private static final int MICROS_PER_SECOND = 1_000_000;
     private static final byte INVALID_INDICATOR = 'X';
+    private static final long NO_CORRUPTED_LINE = 0;
 
     public FileHeader header() {
         return FileHeader.of(movementDate, movementType, layout);
@@ -26,12 +27,27 @@ public record GenerationRequest(long lines, MovementType movementType, LocalDate
 
     public byte[] headerLineBytes() {
         byte[] line = header().lineBytes(layout);
-        line[0] = invalidHeader ? INVALID_INDICATOR : line[0];
+        if (defect == GenerationDefect.HEADER) {
+            line[0] = INVALID_INDICATOR;
+        }
         return line;
     }
 
     public FileTrailer trailer() {
-        return FileTrailer.of(lines, LocalDate.now(), layout);
+        long recordCount = defect == GenerationDefect.COUNT ? lines + 1 : lines;
+        return FileTrailer.of(recordCount, processingDate, layout);
+    }
+
+    public byte[] trailerLineBytes() {
+        byte[] line = trailer().lineBytes(layout);
+        if (defect == GenerationDefect.TRAILER) {
+            line[0] = INVALID_INDICATOR;
+        }
+        return line;
+    }
+
+    public long corruptedDetailLine() {
+        return defect == GenerationDefect.DETAIL ? lines / 2 + 1 : NO_CORRUPTED_LINE;
     }
 
     public long sizeBytes() {

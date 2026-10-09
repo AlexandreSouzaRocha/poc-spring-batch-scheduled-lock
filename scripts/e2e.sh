@@ -32,14 +32,19 @@ for NAME in $NAMES; do
   STATUS=$(wait_file_status "$ID" "CONCLUIDO FALHA" "$TIMEOUT_SECONDS")
   check "status final CONCLUIDO (obtido: $STATUS)" "$([ "$STATUS" = "CONCLUIDO" ] && echo true || echo false)"
 
-  PARTITIONS=$(file_field "$ID" "d['file']['partitioning']['count']")
+  PARTITIONS=$(file_field "$ID" "len(d['partitions'])")
   TOTAL_PARTITIONS=$((TOTAL_PARTITIONS + PARTITIONS))
   check "partições criadas = $PARTITIONS" "$(verification_field "$ID" "d['partitionDocuments'] == $PARTITIONS and d['partitionBlobs'] == $PARTITIONS")"
   check "soma das linhas das partições = $LINES" "$(verification_field "$ID" "d['partitionLines'] == $LINES")"
-  check "todas as partições com tamanho, header e publicação corretos" "$(verification_field "$ID" "d['allPartitionsValid']")"
+  check "todas as partições com tamanho, header, trailer e publicação corretos" "$(verification_field "$ID" "d['allPartitionsValid']")"
   check "partições na pasta $FOLDER/" "$(verification_field "$ID" "all(p['path'].startswith('$FOLDER/') for p in d['partitions'])")"
   check "original movido para processados/ e removido de entrada/" "$(verification_field "$ID" "d['currentPath'].startswith('processados/') and d['currentPathExists'] and not d['sourcePathExists']")"
-  check "processado na primeira tentativa" "$(file_field "$ID" "str(d['file']['attempts'] == 1).lower()")"
+  check "processado na primeira tentativa" "$(file_field "$ID" "str(d['attempts'] == 1).lower()")"
+  check "arquivão removido da gerenciamento_arquivo_recebido" "$(file_field "$ID" "str(d['originalRemoved']).lower()")"
+
+  MOVEMENT_DATE=$(file_field "$ID" "d['partitions'][0]['movement']['date']")
+  check "indicador $MOVEMENT_DATE com a quantidade do trailer ($LINES) para $FOLDER" \
+    "$(indicator_field "$MOVEMENT_DATE" "d['${FOLDER}Quantity'] == $LINES and d['${FOLDER}ProcessingDate'] is not None")"
 
   info "métricas do arquivo $ID"
   print_metrics "$START" "$ID"

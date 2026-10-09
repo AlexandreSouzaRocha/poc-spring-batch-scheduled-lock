@@ -5,20 +5,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import br.com.spring.batch.partitioner.batch.FileJobExecutions;
-import br.com.spring.batch.partitioner.batch.FileJobExecutions.ExecutionSummary;
 import br.com.spring.batch.partitioner.model.document.ReceivedFileDocument;
 import br.com.spring.batch.partitioner.model.enums.FileStatus;
 import br.com.spring.batch.partitioner.repository.OriginalFileRepository;
-import br.com.spring.batch.partitioner.repository.PartitionFileRepository;
+import br.com.spring.batch.partitioner.service.FileQueryService;
+import br.com.spring.batch.partitioner.service.FileQueryService.FileDetail;
 import br.com.spring.batch.partitioner.service.FileStatusService;
 import br.com.spring.batch.partitioner.service.FileVerificationService;
 import br.com.spring.batch.partitioner.service.FileVerificationService.VerificationReport;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -30,19 +29,16 @@ public class ReceivedFileController {
     private static final int MAX_LIMIT = 500;
 
     private final OriginalFileRepository originals;
-    private final PartitionFileRepository partitions;
+    private final FileQueryService queryService;
     private final FileVerificationService verificationService;
     private final FileStatusService statusService;
-    private final FileJobExecutions executions;
 
-    public ReceivedFileController(OriginalFileRepository originals, PartitionFileRepository partitions,
-                                  FileVerificationService verificationService, FileStatusService statusService,
-                                  FileJobExecutions executions) {
+    public ReceivedFileController(OriginalFileRepository originals, FileQueryService queryService,
+                                  FileVerificationService verificationService, FileStatusService statusService) {
         this.originals = originals;
-        this.partitions = partitions;
+        this.queryService = queryService;
         this.verificationService = verificationService;
         this.statusService = statusService;
-        this.executions = executions;
     }
 
     @GetMapping
@@ -65,20 +61,11 @@ public class ReceivedFileController {
 
     @GetMapping("/{id}")
     public ResponseEntity<FileDetail> detail(@PathVariable String id) {
-        return originals.findById(id)
-                .map(file -> ResponseEntity.ok(new FileDetail(file, executions.summary(file.fileName()).orElse(null),
-                        partitions.findByParentFileIdOrderByPartitioningIndexAsc(id))))
-                .orElseGet(() -> ResponseEntity.notFound().build());
+        return ResponseEntity.of(queryService.detail(id));
     }
 
     @GetMapping("/{id}/verification")
     public ResponseEntity<VerificationReport> verification(@PathVariable String id) {
-        return verificationService.verify(id)
-                .map(ResponseEntity::ok)
-                .orElseGet(() -> ResponseEntity.notFound().build());
-    }
-
-    public record FileDetail(ReceivedFileDocument file, ExecutionSummary lastExecution,
-                             List<ReceivedFileDocument> partitions) {
+        return ResponseEntity.of(verificationService.verify(id));
     }
 }

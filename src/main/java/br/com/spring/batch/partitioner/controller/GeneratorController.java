@@ -8,6 +8,7 @@ import br.com.spring.batch.partitioner.model.enums.MovementType;
 import br.com.spring.batch.partitioner.model.layout.FileLayout;
 import br.com.spring.batch.partitioner.service.generation.FileGeneratorService;
 import br.com.spring.batch.partitioner.service.generation.GeneratedFile;
+import br.com.spring.batch.partitioner.service.generation.GenerationDefect;
 import br.com.spring.batch.partitioner.service.generation.GenerationRequest;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -39,10 +40,12 @@ public class GeneratorController {
             @RequestParam(defaultValue = "1000000") @Min(1) long lines,
             @RequestParam(defaultValue = "ABERTO") MovementType movementType,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate movementDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate processingDate,
             @RequestParam(defaultValue = "1") @Min(1) @Max(20) int files,
-            @RequestParam(defaultValue = "false") boolean invalidHeader) {
+            @RequestParam(defaultValue = "NONE") GenerationDefect defect) {
         LocalDate date = Optional.ofNullable(movementDate).orElseGet(LocalDate::now);
-        return generatorService.generate(new GenerationRequest(lines, movementType, date, files, invalidHeader,
+        LocalDate processedOn = Optional.ofNullable(processingDate).orElseGet(LocalDate::now);
+        return generatorService.generate(new GenerationRequest(lines, movementType, date, processedOn, files, defect,
                 layout));
     }
 }

@@ -26,9 +26,9 @@ partition_fail() {
   id=$(wait_file_registered "$name" 120)
   status=$(wait_file_status "$id" "CONCLUIDO FALHA" 600)
   chaos_off
-  partitions=$(file_field "$id" "d['file']['partitioning']['count']")
+  partitions=$(file_field "$id" "len(d['partitions'])")
   check "status CONCLUIDO ($status)" "$([ "$status" = "CONCLUIDO" ] && echo true || echo false)"
-  check "concluído na 2ª tentativa" "$(file_field "$id" "str(d['file']['attempts'] == 2).lower()")"
+  check "concluído na 2ª tentativa" "$(file_field "$id" "str(d['attempts'] == 2).lower()")"
   check "cleanup fez rollback das partições da 1ª tentativa" "$([ "$(count_logs "$start" "partition.cleanup.*fileId=$id.*action=rollback")" -ge 1 ] && echo true || echo false)"
   check "partições íntegras após reprocessamento" "$(verification_field "$id" "d['allPartitionsValid'] and d['partitionBlobs'] == $partitions")"
   check "Kafka recebeu só as mensagens da tentativa bem-sucedida" "$([ $(( $(kafka_count) - kafka_before )) -eq "$partitions" ] && echo true || echo false)"
@@ -45,9 +45,9 @@ publish_fail() {
   id=$(wait_file_registered "$name" 120)
   status=$(wait_file_status "$id" "CONCLUIDO FALHA" 600)
   chaos_off
-  partitions=$(file_field "$id" "d['file']['partitioning']['count']")
+  partitions=$(file_field "$id" "len(d['partitions'])")
   check "status CONCLUIDO ($status)" "$([ "$status" = "CONCLUIDO" ] && echo true || echo false)"
-  check "concluído na 2ª tentativa" "$(file_field "$id" "str(d['file']['attempts'] == 2).lower()")"
+  check "concluído na 2ª tentativa" "$(file_field "$id" "str(d['attempts'] == 2).lower()")"
   check "cleanup pulado (particionamento já concluído)" "$([ "$(count_logs "$start" "partition.cleanup.*fileId=$id.*action=skip")" -ge 1 ] && echo true || echo false)"
   check "partições enviadas ao blob uma única vez" "$([ "$(count_logs "$start" "partition.upload.*fileId=$id")" -eq "$partitions" ] && echo true || echo false)"
   check "partições registradas no Mongo uma única vez" "$([ "$(count_logs "$start" "partition.register.*fileId=$id")" -eq 1 ] && echo true || echo false)"
@@ -100,13 +100,13 @@ zombie_owner() {
   until [ "$(docker logs --since "$start" "psl-$owner" 2>&1 | grep -c "file.ownership.lost.*fileId=$id")" -ge 1 ] || [ $SECONDS -ge $deadline ]; do sleep 2; done
   sleep 10
   chaos_off
-  partitions=$(file_field "$id" "d['file']['partitioning']['count']")
+  partitions=$(file_field "$id" "len(d['partitions'])")
   check "concluído pela outra instância enquanto $owner estava congelada ($status)" "$([ "$status" = "CONCLUIDO" ] && echo true || echo false)"
   check "retomado por $survivor após o lock expirar" "$([ "$(docker logs --since "$start" "psl-$survivor" 2>&1 | grep -c "file.resume.*fileId=$id")" -ge 1 ] && echo true || echo false)"
   check "zumbi ($owner) detectou a perda de posse" "$([ "$(docker logs --since "$start" "psl-$owner" 2>&1 | grep -c "file.ownership.lost.*fileId=$id")" -ge 1 ] && echo true || echo false)"
   check "zumbi não concluiu o job" "$([ "$(docker logs --since "$start" "psl-$owner" 2>&1 | grep -c "job.metrics.*fileId=$id.*status=COMPLETED")" -eq 0 ] && echo true || echo false)"
-  check "status continua CONCLUIDO depois que o zumbi voltou" "$(file_field "$id" "str(d['file']['status'] == 'CONCLUIDO').lower()")"
-  check "2 tentativas (original + retomada)" "$(file_field "$id" "str(d['file']['attempts'] == 2).lower()")"
+  check "status continua CONCLUIDO depois que o zumbi voltou" "$(file_field "$id" "str(d['status'] == 'CONCLUIDO').lower()")"
+  check "2 tentativas (original + retomada)" "$(file_field "$id" "str(d['attempts'] == 2).lower()")"
   check "partições íntegras" "$(verification_field "$id" "d['allPartitionsValid'] and d['partitionBlobs'] == $partitions")"
   check "Kafka recebeu $partitions mensagens (zumbi não publicou)" "$([ $(( $(kafka_count) - kafka_before )) -eq "$partitions" ] && echo true || echo false)"
 }
@@ -122,7 +122,7 @@ slow_io_at() {
   result=$(wait_file_status "$id" "CONCLUIDO FALHA" 600)
   chaos_off
   check "status CONCLUIDO ($result)" "$([ "$result" = "CONCLUIDO" ] && echo true || echo false)"
-  check "concluído na 1ª tentativa" "$(file_field "$id" "str(d['file']['attempts'] == 1).lower()")"
+  check "concluído na 1ª tentativa" "$(file_field "$id" "str(d['attempts'] == 1).lower()")"
   check "atraso de 90s aplicado em $point" "$([ "$(count_logs "$start" "chaos.delay.*point=$point.*fileId=$id")" -ge 1 ] && echo true || echo false)"
   check "nenhuma transação do Mongo abortada" "$([ "$(count_logs "$start" "NoSuchTransaction")" -eq 0 ] && echo true || echo false)"
   check "partições íntegras e publicadas" "$(verification_field "$id" "d['allPartitionsValid']")"
@@ -134,19 +134,43 @@ slow_io() {
   slow_io_at PUBLISH SALDO
 }
 
-invalid_file() {
-  info "CENÁRIO invalid-file: header inválido -> FALHA imediata, sem retentativa, arquivo mantido em entrada/"
+invalid_file_with() {
+  local defect=$1 description=$2
+  info "CENÁRIO invalid-file ($defect): $description -> FALHA imediata, sem retentativa, arquivo mantido em entrada/"
   setup
   local kafka_before name id status
   kafka_before=$(kafka_count)
-  name=$(generate_one ABERTO "&invalidHeader=true")
+  name=$(generate_one ABERTO "&defect=$defect")
   id=$(wait_file_registered "$name" 120)
   status=$(wait_file_status "$id" "CONCLUIDO FALHA" 300)
   check "status FALHA ($status)" "$([ "$status" = "FALHA" ] && echo true || echo false)"
-  check "sem retentativas (1 tentativa)" "$(file_field "$id" "str(d['file']['attempts'] == 1).lower()")"
+  check "sem retentativas (1 tentativa)" "$(file_field "$id" "str(d['attempts'] == 1).lower()")"
   check "arquivo mantido em entrada/" "$(verification_field "$id" "d['currentPath'].startswith('entrada/') and d['currentPathExists']")"
-  check "nenhuma partição criada" "$(verification_field "$id" "d['partitionDocuments'] == 0")"
+  check "nenhuma partição registrada" "$(verification_field "$id" "d['partitionDocuments'] == 0")"
   check "nenhuma mensagem no Kafka" "$([ "$(kafka_count)" -eq "$kafka_before" ] && echo true || echo false)"
+}
+
+invalid_file() {
+  invalid_file_with HEADER "header com indicador inválido"
+  invalid_file_with TRAILER "trailer com indicador inválido"
+  invalid_file_with DETAIL "linha H no meio dos detalhes"
+}
+
+trailer_mismatch() {
+  info "CENÁRIO trailer-mismatch: quantidade do trailer diferente das linhas -> WARN, processamento concluído e indicador com a quantidade do trailer"
+  setup
+  local start name id status partitions movement_date
+  start=$(now_utc)
+  name=$(generate_one SALDO "&defect=COUNT")
+  id=$(wait_file_registered "$name" 120)
+  status=$(wait_file_status "$id" "CONCLUIDO FALHA" 300)
+  partitions=$(file_field "$id" "len(d['partitions'])")
+  movement_date=$(file_field "$id" "d['partitions'][0]['movement']['date']")
+  check "status CONCLUIDO ($status)" "$([ "$status" = "CONCLUIDO" ] && echo true || echo false)"
+  check "WARN de quantidade divergente registrado" "$([ "$(count_logs "$start" "file.trailer.mismatch.*fileId=$id")" -ge 1 ] && echo true || echo false)"
+  check "partições íntegras" "$(verification_field "$id" "d['allPartitionsValid'] and d['partitionBlobs'] == $partitions")"
+  check "arquivão removido da gerenciamento_arquivo_recebido" "$(file_field "$id" "str(d['originalRemoved']).lower()")"
+  check "indicador com a quantidade do trailer ($((LINES + 1)))" "$(indicator_field "$movement_date" "d['saldoQuantity'] == $((LINES + 1))")"
 }
 
 case "$SCENARIO" in
@@ -155,8 +179,9 @@ case "$SCENARIO" in
   kill-owner) kill_owner ;;
   zombie-owner) zombie_owner ;;
   invalid-file) invalid_file ;;
+  trailer-mismatch) trailer_mismatch ;;
   slow-io) slow_io ;;
-  all) partition_fail; publish_fail; invalid_file; slow_io; kill_owner; zombie_owner ;;
+  all) partition_fail; publish_fail; invalid_file; trailer_mismatch; slow_io; kill_owner; zombie_owner ;;
   *) echo "cenário desconhecido: $SCENARIO"; exit 2 ;;
 esac
 

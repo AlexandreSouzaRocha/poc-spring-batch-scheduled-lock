@@ -2,6 +2,7 @@ package br.com.spring.batch.partitioner.storage;
 
 import br.com.spring.batch.partitioner.config.properties.AppProperties.FolderSettings;
 import br.com.spring.batch.partitioner.model.document.ReceivedFileDocument;
+import br.com.spring.batch.partitioner.model.enums.MovementType;
 
 import org.springframework.stereotype.Component;
 
@@ -28,7 +29,11 @@ public class BlobPaths {
     }
 
     public String partitionPrefix(ReceivedFileDocument original) {
-        return join(original.movementType().folder(), original.movementDate(), original.id()) + SEPARATOR;
+        return partitionPrefix(original.movementType(), original.movementDate(), original.id());
+    }
+
+    public String partitionPrefix(MovementType type, String movementDate, String fileId) {
+        return join(type.folder(), movementDate, fileId) + SEPARATOR;
     }
 
     public String partitionFileName(ReceivedFileDocument original, int partitionIndex) {
@@ -40,7 +45,11 @@ public class BlobPaths {
     }
 
     public String processedPath(ReceivedFileDocument original) {
-        return join(folders.processed(), original.movementDate(), original.id(), original.fileName());
+        return processedPath(original.movementDate(), original.id(), original.fileName());
+    }
+
+    public String processedPath(String movementDate, String fileId, String fileName) {
+        return join(folders.processed(), movementDate, fileId, fileName);
     }
 
     public static String fileNameOf(String path) {

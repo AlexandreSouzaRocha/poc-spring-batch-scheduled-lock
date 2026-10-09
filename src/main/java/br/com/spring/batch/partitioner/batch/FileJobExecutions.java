@@ -38,6 +38,13 @@ public class FileJobExecutions {
         return jobRepository.getJobExecutions(jobInstance).size();
     }
 
+    public int attempts(String fileName) {
+        return Optional.ofNullable(jobRepository.getJobInstance(FilePartitionJob.NAME,
+                        FilePartitionJob.parametersFor(fileName)))
+                .map(this::executionCount)
+                .orElse(0);
+    }
+
     public Optional<ExecutionSummary> summary(String fileName) {
         return last(fileName).map(ExecutionSummary::of);
     }

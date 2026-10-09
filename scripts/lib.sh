@@ -85,18 +85,16 @@ file_names_of() {
 }
 
 file_id_by_name() {
-  local name=$1
-  curl -fsS "$(partitioner_url)/files?limit=500" \
-    | python3 -c "import json,sys; print(next((f['id'] for f in json.load(sys.stdin) if f['fileName']=='$name'), ''))"
+  python3 -c 'import hashlib, sys, uuid; print(uuid.UUID(bytes=hashlib.md5(sys.argv[1].encode()).digest(), version=3))' "$1"
 }
 
 wait_file_registered() {
-  local name=$1 deadline=$((SECONDS + ${2:-120})) id=""
-  while [ -z "$id" ] && [ $SECONDS -lt $deadline ]; do
-    id=$(file_id_by_name "$name")
-    [ -z "$id" ] && sleep 2
+  local name=$1 deadline=$((SECONDS + ${2:-120})) id
+  id=$(file_id_by_name "$name")
+  until file_json "$id" >/dev/null 2>&1 || [ $SECONDS -ge $deadline ]; do
+    sleep 2
   done
-  echo "$id"
+  file_json "$id" >/dev/null 2>&1 && echo "$id"
 }
 
 file_json() {
@@ -111,7 +109,7 @@ file_field() {
 wait_file_status() {
   local id=$1 statuses=$2 deadline=$((SECONDS + ${3:-900})) current_status=""
   while [ $SECONDS -lt $deadline ]; do
-    current_status=$(file_field "$id" "d['file']['status']" 2>/dev/null || echo "")
+    current_status=$(file_field "$id" "d['status']" 2>/dev/null || echo "")
     if echo " $statuses " | grep -q " $current_status "; then
       echo "$current_status"
       return
@@ -119,6 +117,12 @@ wait_file_status() {
     sleep 3
   done
   echo "TIMEOUT:$current_status"
+}
+
+indicator_field() {
+  local movement_date=$1 expression=$2
+  curl -fsS "$(partitioner_url)/indicators/$movement_date" \
+    | python3 -c "import json,sys; d=json.load(sys.stdin); print(str($expression).lower())"
 }
 
 verification() {
@@ -186,36 +190,3 @@ blob_usage() {
     | python3 "$(dirname "${BASH_SOURCE[0]}")/blob-usage.py"
 }
 
-wait_registered() {
-  local expected=$1 deadline=$((SECONDS + ${2:-180}))
-  while [ $SECONDS -lt $deadline ]; do
-    local registered
-    registered=$(curl -fsS "$(partitioner_url)/files?limit=50" 2>/dev/null \
-      | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))' 2>/dev/null || echo 0)
-    if [ "$registered" -ge "$expected" ]; then
-      return 0
-    fi
-    sleep 2
-  done
-  return 1
-}
-
-file_id_of() {
-  local movement_type=$1 movement_date=$2
-  curl -fsS "$(partitioner_url)/files?limit=50" | python3 -c "
-import json, sys
-for entry in json.load(sys.stdin):
-    movement = entry.get('movement') or {}
-    if movement.get('type') == '$movement_type' and movement.get('date') == '$movement_date':
-        print(entry['id'])
-        break
-"
-}
-
-completed_before() {
-  local first=$1 second=$2
-  local first_at second_at
-  first_at=$(file_field "$first" "d['file']['audit']['completedAt']")
-  second_at=$(file_field "$second" "d['file']['audit']['completedAt']")
-  python3 -c "print(str('$first_at' < '$second_at').lower())"
-}

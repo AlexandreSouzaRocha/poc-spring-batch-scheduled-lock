@@ -12,6 +12,7 @@ import java.util.concurrent.Future;
 import br.com.spring.batch.partitioner.batch.metrics.StepVolume;
 import br.com.spring.batch.partitioner.batch.metrics.Throughput;
 import br.com.spring.batch.partitioner.model.layout.FileHeader;
+import br.com.spring.batch.partitioner.model.layout.LineType;
 import br.com.spring.batch.partitioner.storage.BlobPaths;
 import br.com.spring.batch.partitioner.storage.BlobStorage;
 import br.com.spring.batch.partitioner.storage.BlockOutputStream;
@@ -57,9 +58,11 @@ public class FileGeneratorService {
                 Duration.ofMillis(System.currentTimeMillis() - start));
         log.info("file.generate").field("fileName", fileName).field("lines", lines).field("sizeBytes", sizeBytes)
                 .field("elapsedMs", throughput.durationMs()).field("mbPerSec", throughput.megabytesPerSecond())
-                .data("blobPath", path).data("header", header.text()).data("invalidHeader", request.invalidHeader())
+                .data("blobPath", path).data("header", header.text()).data("trailer", request.trailer().text())
+                .data("defect", request.defect())
                 .log("arquivo gerado e publicado no blob");
-        return new GeneratedFile(fileName, path, header.movementType().name(), header.movementDateText(), lines,
+        return new GeneratedFile(fileName, path, header.movementType().name(), header.movementDateText(),
+                request.trailer().processingDateText(), lines, request.trailer().recordCount(), request.defect(),
                 sizeBytes, throughput.durationMs(), throughput.megabytesPerSecond());
     }
 
@@ -67,18 +70,24 @@ public class FileGeneratorService {
         DetailRecordBuilder records = new DetailRecordBuilder(request.header().movementDateText(), request.layout());
         try (BlockOutputStream output = storage.openOutput(path)) {
             output.write(request.headerLineBytes());
-            writeRecords(output, records, request.lines());
-            output.write(request.trailer().lineBytes(request.layout()));
+            writeRecords(output, records, request);
+            output.write(request.trailerLineBytes());
             output.commit();
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
     }
 
-    private static void writeRecords(OutputStream output, DetailRecordBuilder records, long lines)
+    private static void writeRecords(OutputStream output, DetailRecordBuilder records, GenerationRequest request)
             throws IOException {
-        for (long sequence = 1; sequence <= lines; sequence++) {
-            output.write(records.next(sequence));
+        long corruptedLine = request.corruptedDetailLine();
+        for (long sequence = 1; sequence <= request.lines(); sequence++) {
+            byte[] line = records.next(sequence);
+            if (sequence == corruptedLine) {
+                line = line.clone();
+                line[0] = LineType.HEADER.indicator();
+            }
+            output.write(line);
         }
     }
 

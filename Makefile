@@ -8,7 +8,7 @@ FILES          ?= 1
 TYPE           ?= ABERTO
 DATE           ?= $(shell date +%Y-%m-%d)
 ID             ?=
-INVALID        ?= false
+DEFECT         ?= NONE
 POINT          ?= PARTITION
 ACTION         ?= FAIL
 ATTEMPT        ?= 1
@@ -74,8 +74,8 @@ run: ## Sobe a app local com os profiles partitioner+generator (use com 'make up
 	$(MVN) spring-boot:run
 
 ## ---------- Operação ----------
-generate: ## Gera arquivo(s) grande(s) no blob. LINES=1000000 FILES=1 TYPE=ABERTO|FECHADO|SALDO|ULTIMA DATE=yyyy-MM-dd INVALID=false
-	curl -fsS -X POST "$(GENERATOR_URL)/generator/files?lines=$(LINES)&files=$(FILES)&movementType=$(TYPE)&movementDate=$(DATE)&invalidHeader=$(INVALID)" | $(JSON)
+generate: ## Gera arquivo(s) grande(s) no blob. LINES=1000000 FILES=1 TYPE=ABERTO|FECHADO|SALDO|ULTIMA DATE=yyyy-MM-dd DEFECT=NONE|HEADER|TRAILER|COUNT|DETAIL
+	curl -fsS -X POST "$(GENERATOR_URL)/generator/files?lines=$(LINES)&files=$(FILES)&movementType=$(TYPE)&movementDate=$(DATE)&defect=$(DEFECT)" | $(JSON)
 
 status: ## Resumo por status + últimos arquivos grandes
 	@curl -fsS "$(P1_URL)/files/summary" | $(JSON)
@@ -140,7 +140,7 @@ start-all: ## Sobe de novo containers parados/mortos
 e2e: ## Teste integrado: gera, aguarda e valida partições, blob, Kafka, lock e métricas. LINES FILES TYPE
 	./scripts/e2e.sh $(LINES) $(FILES) $(TYPE)
 
-chaos-test: ## Cenários de resume/recovery: SCENARIO=partition-fail|publish-fail|invalid-file|slow-io|kill-owner|zombie-owner|all
+chaos-test: ## Cenários de resume/recovery: SCENARIO=partition-fail|publish-fail|invalid-file|trailer-mismatch|slow-io|kill-owner|zombie-owner|all
 	./scripts/chaos-test.sh $(SCENARIO)
 
 ## ---------- Testes de carga ----------
