@@ -6,9 +6,11 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import br.com.spring.batch.partitioner.support.log.StructuredLogger;
 
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 @Component
+@Profile("chaos")
 public class FailureInjector {
 
     private static final StructuredLogger log = StructuredLogger.of(FailureInjector.class, "chaos");

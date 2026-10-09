@@ -648,7 +648,7 @@ particionado, o que distribui as mensagens entre as partições e permite consum
 
 ```
 br.com.spring.batch.partitioner
-├── controller    REST: gerador, consulta/verificação de arquivos, indicador, locks, chaos
+├── controller    REST: gerador, consulta/verificação de arquivos, indicador, locks, chaos (profile chaos)
 ├── service       ciclo (polling → lock → job), intake (listagem, registro, retomada e deduplicação), runner do job,
 │                 status, consulta (FileQueryService) e verificação
 │   └── generation  worker de geração de massa (profile generator)
@@ -668,7 +668,7 @@ br.com.spring.batch.partitioner
 ├── lock          LockProvider configurável do ShedLock e ProcessingLock
 ├── messaging     publicação no Kafka
 ├── config        beans e propriedades
-└── support       log estruturado, request_id, chaos
+└── support       log estruturado, request_id, chaos (só no profile chaos, aplicado por proxy nas tasklets)
 ```
 
 Ver também: [TESTING.md](TESTING.md) · [OBSERVABILITY.md](OBSERVABILITY.md) · [README](../README.md).

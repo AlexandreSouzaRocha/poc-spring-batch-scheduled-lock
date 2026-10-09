@@ -6,7 +6,6 @@ import br.com.spring.batch.partitioner.model.document.ReceivedFileDocument;
 import br.com.spring.batch.partitioner.repository.PartitionFileRepository;
 import br.com.spring.batch.partitioner.storage.BlobPaths;
 import br.com.spring.batch.partitioner.storage.BlobStorage;
-import br.com.spring.batch.partitioner.support.chaos.ChaosPoint;
 import br.com.spring.batch.partitioner.support.log.StructuredLogger;
 import org.slf4j.event.Level;
 
@@ -38,7 +37,7 @@ public class CleanupPartitionsTasklet implements Tasklet {
 
     @Override
     public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) {
-        ReceivedFileDocument original = support.load(contribution, ChaosPoint.CLEANUP);
+        ReceivedFileDocument original = support.load(contribution);
         if (executions.partitioningCompleted(contribution.getStepExecution().getJobExecution().getJobInstance())) {
             log.info("partition.cleanup").field("fileId", original.id()).field("attempt", original.attempts())
                     .field("action", "skip").log("particionamento concluído em tentativa anterior; nada a limpar");

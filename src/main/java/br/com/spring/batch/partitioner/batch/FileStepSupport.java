@@ -4,8 +4,6 @@ import java.util.Optional;
 
 import br.com.spring.batch.partitioner.model.document.ReceivedFileDocument;
 import br.com.spring.batch.partitioner.repository.OriginalFileRepository;
-import br.com.spring.batch.partitioner.support.chaos.ChaosPoint;
-import br.com.spring.batch.partitioner.support.chaos.FailureInjector;
 
 import org.springframework.batch.core.step.StepContribution;
 import org.springframework.batch.core.step.StepExecution;
@@ -15,34 +13,19 @@ import org.springframework.stereotype.Component;
 public class FileStepSupport {
 
     private final OriginalFileRepository repository;
-    private final FailureInjector failureInjector;
     private final FileJobExecutions executions;
 
-    public FileStepSupport(OriginalFileRepository repository, FailureInjector failureInjector,
-                           FileJobExecutions executions) {
+    public FileStepSupport(OriginalFileRepository repository, FileJobExecutions executions) {
         this.repository = repository;
-        this.failureInjector = failureInjector;
         this.executions = executions;
-    }
-
-    public ReceivedFileDocument load(StepContribution contribution, ChaosPoint point) {
-        ReceivedFileDocument original = load(contribution);
-        failureInjector.check(point, original.id(), original.attempts());
-        return original;
     }
 
     public ReceivedFileDocument load(StepContribution contribution) {
         return repository.getById(currentFileId(contribution));
     }
 
-    public Optional<ReceivedFileDocument> find(StepContribution contribution, ChaosPoint point) {
-        Optional<ReceivedFileDocument> original = repository.findById(currentFileId(contribution));
-        original.ifPresent(file -> failureInjector.check(point, file.id(), file.attempts()));
-        return original;
-    }
-
-    public void checkPartition(ReceivedFileDocument original, int partitionIndex) {
-        failureInjector.checkPartition(original.id(), original.attempts(), partitionIndex);
+    public Optional<ReceivedFileDocument> find(StepContribution contribution) {
+        return repository.findById(currentFileId(contribution));
     }
 
     private String currentFileId(StepContribution contribution) {

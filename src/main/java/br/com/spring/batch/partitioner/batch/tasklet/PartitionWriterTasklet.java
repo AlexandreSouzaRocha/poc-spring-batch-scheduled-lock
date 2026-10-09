@@ -62,7 +62,6 @@ public class PartitionWriterTasklet implements Tasklet {
         CopyResult copied = partitionCopy.copy(original.currentPath(), range.bytes(), target, progress);
         requireComplete(range, copied.copiedBytes());
         long durationMs = (System.nanoTime() - startNanos) / NANOS_PER_MILLI;
-        support.checkPartition(original, range.index());
         long sizeBytes = range.fileSizeBytes(layout, target.hasTrailer());
         long linesRead = copied.verifiedLines().orElse(range.lineCount());
         recordVolume(contribution, range, sizeBytes, linesRead, copied.verifiedLines().isPresent());

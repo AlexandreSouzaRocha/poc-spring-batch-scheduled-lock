@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
@@ -26,6 +27,13 @@ public class ApiExceptionHandler {
         log.warn("request.invalid").field("method", request.getMethod()).field("path", request.getRequestURI())
                 .error(error).log("requisição inválida");
         return response(HttpStatus.BAD_REQUEST, error);
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<Map<String, Object>> notFound(NoResourceFoundException error, HttpServletRequest request) {
+        log.info("request.not-found").field("method", request.getMethod()).field("path", request.getRequestURI())
+                .log("rota inexistente");
+        return response(HttpStatus.NOT_FOUND, error);
     }
 
     @ExceptionHandler(Exception.class)

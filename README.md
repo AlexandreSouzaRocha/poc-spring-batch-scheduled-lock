@@ -111,7 +111,7 @@ Kafka acontece dentro de transação do Mongo (ver [ARCHITECTURE.md](docs/ARCHIT
 | `POST` | `/files/{id}/requeue` | todas | Devolve um arquivo `FALHA` para reprocessamento (tentativas zeradas) |
 | `GET` | `/indicators/{data}` | todas | Indicador de processamento da data do header |
 | `GET` | `/locks` | todas | Documentos de lock do ShedLock |
-| `PUT` / `DELETE` / `GET` | `/chaos` | particionadores | Injeção de falhas para teste de resiliência |
+| `PUT` / `DELETE` / `GET` | `/chaos` | particionadores com o profile `chaos` (só local) | Injeção de falhas para teste de resiliência; sem o profile a rota não existe (404) |
 | `GET` | `/actuator/prometheus` | todas | Timers `partitioner_step_duration` e `partitioner_job_duration` |
 
 ## Documentação

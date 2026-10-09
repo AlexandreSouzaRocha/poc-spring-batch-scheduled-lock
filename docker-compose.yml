@@ -200,7 +200,7 @@ services:
       - "8081:8081"
     environment:
       <<: *app-env
-      SPRING_PROFILES_ACTIVE: partitioner
+      SPRING_PROFILES_ACTIVE: partitioner,chaos
       OTEL_RESOURCE_ATTRIBUTES: service.instance.id=partitioner-1
     healthcheck: *app-healthcheck
     deploy:
@@ -221,7 +221,7 @@ services:
       - "8082:8081"
     environment:
       <<: *app-env
-      SPRING_PROFILES_ACTIVE: partitioner
+      SPRING_PROFILES_ACTIVE: partitioner,chaos
       OTEL_RESOURCE_ATTRIBUTES: service.instance.id=partitioner-2
     healthcheck: *app-healthcheck
     deploy:

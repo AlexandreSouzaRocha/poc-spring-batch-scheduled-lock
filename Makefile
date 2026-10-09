@@ -118,7 +118,7 @@ blob-ls: ## Lista blobs do container (PREFIX=entrada/ | processados/ | aberto/ .
 		--query "[].{name:name, bytes:properties.contentLength}" --output table
 
 ## ---------- Resiliência ----------
-chaos: ## Injeta falha nos 2 particionadores. POINT=VALIDATE|CLEANUP|PARTITION|MOVE|PUBLISH ACTION=FAIL|DELAY ATTEMPT=1 PARTITION= DELAY=90
+chaos: ## Injeta falha nos 2 particionadores. POINT=VALIDATE|CLEANUP|PARTITION|REGISTER|PUBLISH|MOVE|FINISH ACTION=FAIL|DELAY ATTEMPT=1 PARTITION= DELAY=90
 	@for url in $(P1_URL) $(P2_URL); do \
 		curl -fsS -X PUT "$$url/chaos?point=$(POINT)&action=$(ACTION)&onAttempt=$(ATTEMPT)&delaySeconds=$(DELAY)$(if $(PARTITION),&partitionIndex=$(PARTITION),)"; echo; \
 	done

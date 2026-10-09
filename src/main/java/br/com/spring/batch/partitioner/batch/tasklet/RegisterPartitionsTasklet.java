@@ -17,7 +17,6 @@ import br.com.spring.batch.partitioner.repository.PartitionFileRepository;
 import br.com.spring.batch.partitioner.storage.BlobFile;
 import br.com.spring.batch.partitioner.storage.BlobPaths;
 import br.com.spring.batch.partitioner.storage.BlobStorage;
-import br.com.spring.batch.partitioner.support.chaos.ChaosPoint;
 import br.com.spring.batch.partitioner.support.log.StructuredLogger;
 
 import org.springframework.batch.core.scope.context.ChunkContext;
@@ -52,7 +51,7 @@ public class RegisterPartitionsTasklet implements Tasklet {
 
     @Override
     public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) {
-        ReceivedFileDocument original = support.load(contribution, ChaosPoint.REGISTER);
+        ReceivedFileDocument original = support.load(contribution);
         requireAllLinesRead(contribution.getStepExecution().getJobExecution().getExecutionContext(), original);
         Map<String, BlobFile> uploaded = storage.list(paths.partitionPrefix(original)).stream()
                 .collect(Collectors.toMap(BlobFile::path, Function.identity()));

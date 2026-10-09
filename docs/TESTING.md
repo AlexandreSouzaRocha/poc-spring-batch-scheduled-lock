@@ -21,6 +21,7 @@ make test
 | `PartitionChunksTest` | Divisão da faixa em trechos alinhados ao bloco |
 | `BlockOutputStreamTest` | Blocos de tamanho fixo em ordem e nenhum commit sem `commit()` |
 | `ChaosRuleTest` | Regras de injeção de falha por tentativa e partição |
+| `ChaosTaskletInterceptorTest` | Falha antes da tasklet nos pontos de step e depois dela em `PARTITION`, step normal sem regra e beans que não são tasklet intactos |
 | `ErrorSummaryTest` | Resumo de erro sem stack trace |
 | `OriginalFileRepositoryIntegrationTest` | MongoDB real (Testcontainers): documento com `tentativas` na raiz, status `PARTICIONANDO` e `tipo` `ORIGINAL` gravados em português e sem dados de execução; `_id` derivado do nome; nome repetido gera `DuplicateKeyException`; `PARTICIONANDO` interrompido e `FALHA_PARTICIONAMENTO` retomados com uma tentativa a mais; tentativas esgotadas viram `FALHA`; `FALHA` só volta via requeue |
 | `PartitionFileRepositoryIntegrationTest` | MongoDB real com replica set (Testcontainers): `replaceAll` transacional por arquivo, partições ordenadas por índice, pendentes de publicação, `deleteByParentFileId` só do arquivo e valores gravados (`PARTICAO`, `CONCLUIDO`, `tentativas = 1`) |
@@ -68,6 +69,14 @@ TODAS AS VALIDAÇÕES PASSARAM
 make chaos-test SCENARIO=all          # ou partition-fail | publish-fail | invalid-file | trailer-mismatch | slow-io | kill-owner | zombie-owner
 LINES=2000000 ./scripts/chaos-test.sh kill-owner
 ```
+
+O chaos existe **só localmente**: tudo fica em `support/chaos` e só é carregado com o profile
+`chaos`, que o `docker-compose.yml` liga nos particionadores (`SPRING_PROFILES_ACTIVE=partitioner,chaos`).
+O código de produção não referencia o chaos. O `ChaosTaskletInterceptor` (um `BeanPostProcessor`)
+envolve cada tasklet num proxy do `spring-aop` e aplica a regra ativa pelo nome do step: antes da
+tasklet em `VALIDATE`, `CLEANUP`, `REGISTER`, `PUBLISH`, `MOVE` e `FINISH`, e depois dela em
+`PARTITION`, quando a partição já foi gravada. Sem o profile não há interceptor, injetor nem a rota
+`/chaos`, que responde 404.
 
 A falha é injetada nas duas instâncias via `PUT /chaos`, porque não se sabe qual delas vai obter o
 lock do tipo. Um arquivo em `FALHA` não bloqueia os demais, então os cenários rodam encadeados sem

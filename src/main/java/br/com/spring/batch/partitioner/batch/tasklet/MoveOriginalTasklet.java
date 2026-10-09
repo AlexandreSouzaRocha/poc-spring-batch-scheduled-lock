@@ -6,7 +6,6 @@ import br.com.spring.batch.partitioner.model.document.ReceivedFileDocument;
 import br.com.spring.batch.partitioner.repository.OriginalFileRepository;
 import br.com.spring.batch.partitioner.storage.BlobPaths;
 import br.com.spring.batch.partitioner.storage.BlobStorage;
-import br.com.spring.batch.partitioner.support.chaos.ChaosPoint;
 import br.com.spring.batch.partitioner.support.log.StructuredLogger;
 
 import org.springframework.batch.core.scope.context.ChunkContext;
@@ -35,7 +34,7 @@ public class MoveOriginalTasklet implements Tasklet {
 
     @Override
     public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) {
-        ReceivedFileDocument original = support.load(contribution, ChaosPoint.MOVE);
+        ReceivedFileDocument original = support.load(contribution);
         String target = paths.processedPath(original);
         if (!target.equals(original.currentPath())) {
             storage.move(original.currentPath(), target);

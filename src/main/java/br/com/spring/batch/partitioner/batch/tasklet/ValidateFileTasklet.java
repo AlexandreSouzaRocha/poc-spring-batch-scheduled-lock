@@ -14,7 +14,6 @@ import br.com.spring.batch.partitioner.model.layout.FileTrailer;
 import br.com.spring.batch.partitioner.model.partition.PartitionPlan;
 import br.com.spring.batch.partitioner.repository.OriginalFileRepository;
 import br.com.spring.batch.partitioner.storage.BlobStorage;
-import br.com.spring.batch.partitioner.support.chaos.ChaosPoint;
 import br.com.spring.batch.partitioner.support.log.StructuredLogger;
 
 import org.springframework.batch.core.scope.context.ChunkContext;
@@ -46,7 +45,7 @@ public class ValidateFileTasklet implements Tasklet {
 
     @Override
     public RepeatStatus execute(StepContribution contribution, ChunkContext chunkContext) {
-        ReceivedFileDocument original = support.load(contribution, ChaosPoint.VALIDATE);
+        ReceivedFileDocument original = support.load(contribution);
         String path = original.currentPath();
         FileHeader header = FileHeader.parse(storage.read(path, layout.headerRange()), layout);
         long detailLines = layout.detailLineCount(original.sizeBytes());
