@@ -175,3 +175,22 @@ OTEL on, 4 GB, 4 vCPUs, 2 instâncias. Relatório bruto em
 Confiança média: host na bateria (68%) e Docker Desktop **não** reiniciado (só os containers de
 outro projeto foram parados). O resultado fica 1,2% abaixo da bateria final (147.860 ms), dentro do
 ruído: as mudanças não têm custo mensurável.
+
+## Regressão — trailer, conferência das linhas D, indicador e expurgo (2026-10-10)
+
+Verificação depois do layout H/D/T com conferência das linhas `D` na cópia em streaming, do trailer
+em cada partição, do `indicador_processamento`, do expurgo do arquivão e dos nomes em português.
+Mesma configuração recomendada da regressão anterior. Relatórios brutos em
+[load-test-20261010-183731.md](load-test-20261010-183731.md) e
+[load-test-20261010-185907.md](load-test-20261010-185907.md).
+
+| Rodada | Geração | Particionamento | MB/s | Job | Pico mem | Kafka | Confiança |
+|---|---|---|---|---|---|---|---|
+| 1ª, Docker sem reiniciar depois de três baterias de chaos | 276 s | 191.763 ms | 187,74 | 194.101 ms | 3.441 MB | 10 | baixa |
+| 2ª, Docker Desktop reiniciado | 257 s | 149.281 ms | 241,16 | 150.253 ms | 3.444 MB | 10 | média |
+
+A 1ª rodada foi descartada: a geração, que não mudou, ficou 18% mais lenta, sinal da degradação
+acumulada do Docker. Na 2ª, o job ficou 2,4% acima da regressão anterior (146.798 ms), abaixo da
+variação da própria geração (+10%) e dentro do ruído da medição na bateria (52%), com os containers de
+outro projeto rodando. Um microbenchmark do `DetailLineScanner` mediu ~90 GB/s por thread: a
+conferência das linhas custa menos de 0,5 s de CPU em 35 GB. As mudanças não têm custo mensurável.
