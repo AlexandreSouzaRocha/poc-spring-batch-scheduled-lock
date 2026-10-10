@@ -501,6 +501,7 @@ O `MongoLockProvider` oficial deixa trocar só o nome da collection. Os campos s
 
 * **Duplicate key:** se o campo do nome não for `_id`, o store cria um índice único nele. Sem esse índice, o upsert não gera duplicate key e duas instâncias conseguiriam o lock.
 * **Write concern:** o `MongoTemplate` do lock usa `WriteConcern.MAJORITY`.
+* **Expurgo:** liberar o lock não apaga o documento (o `unlock` só encurta `bloqueado_ate`, preservando o `lock-at-least-for`), então há um documento por nome de lock, reaproveitado a cada ciclo. Um índice TTL em `bloqueado_ate` (`LOCK_RETENTION_DAYS`, padrão 7 dias) apaga os locks que não são adquiridos há 7 dias, como o de um tipo que deixou de chegar ou o `file-processing` depois de trocar para `TYPE_LOCK`. O TTL fica em `bloqueado_ate`, e não em `bloqueado_em`, porque o keep-alive renova só o `bloqueado_ate`: um lock em uso nunca expira. Se o documento for apagado, a próxima aquisição o recria pelo upsert.
 * **Keep-alive:** o `KeepAliveLockProvider` renova o lock a cada `lock-at-most-for / 2` enquanto o processamento roda. Um arquivo grande não perde o lock, e um lock órfão expira em até `lock-at-most-for`.
 
 ```yaml
@@ -547,7 +548,7 @@ criar um recurso com a configuração errada em produção.
 | Recurso | Quem cria | Script |
 |---|---|---|
 | Replica set, collections (`batch_*`, `gerenciamento_arquivo_recebido`, `indicador_processamento`, `bloqueio_agendamento`), sequences e índices | `mongo-init` | [`docker/mongo-init.sh`](../docker/mongo-init.sh) + [`docker/mongo-collections.js`](../docker/mongo-collections.js) |
-| Índices TTL de expurgo do JobRepository | `mongo-init` | [`docker/mongo-ttl-indexes.js`](../docker/mongo-ttl-indexes.js) |
+| Índices TTL de expurgo do JobRepository (`BATCH_RETENTION_DAYS`, padrão 7 dias) e do lock (`LOCK_RETENTION_DAYS`, padrão 7 dias, sobre `bloqueado_ate`) | `mongo-init` | [`docker/mongo-ttl-indexes.js`](../docker/mongo-ttl-indexes.js) |
 | Tópico `movimentos-particionados` (10 partições) | `kafka-init` | [`docker/kafka-init.sh`](../docker/kafka-init.sh) |
 | Container `movimentos` no blob | `azurite-init` | [`docker/azurite-init.sh`](../docker/azurite-init.sh) |
 

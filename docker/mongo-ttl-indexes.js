@@ -1,18 +1,25 @@
-const RETENTION_DAYS = parseInt(process.env.BATCH_RETENTION_DAYS || "7", 10);
-
-if (!Number.isInteger(RETENTION_DAYS) || RETENTION_DAYS <= 0) {
-  throw new Error("BATCH_RETENTION_DAYS invalido: " + process.env.BATCH_RETENTION_DAYS);
+function retentionDays(variable) {
+  const days = parseInt(process.env[variable] || "7", 10);
+  if (!Number.isInteger(days) || days <= 0) {
+    throw new Error(variable + " invalido: " + process.env[variable]);
+  }
+  return days;
 }
 
-const RETENTION_SECONDS = RETENTION_DAYS * 86400;
+const BATCH_RETENTION_DAYS = retentionDays("BATCH_RETENTION_DAYS");
+const LOCK_RETENTION_DAYS = retentionDays("LOCK_RETENTION_DAYS");
+const SHEDLOCK_COLLECTION = process.env.SHEDLOCK_COLLECTION || "bloqueio_agendamento";
+const SHEDLOCK_LOCK_UNTIL_FIELD = process.env.SHEDLOCK_LOCK_UNTIL_FIELD || "bloqueado_ate";
 
 const TTL_SPECS = [
-  { collection: "batch_job_instance", field: "create_time" },
-  { collection: "batch_job_execution", field: "create_time" },
-  { collection: "batch_step_execution", field: "create_time" }
+  { collection: "batch_job_instance", field: "create_time", days: BATCH_RETENTION_DAYS },
+  { collection: "batch_job_execution", field: "create_time", days: BATCH_RETENTION_DAYS },
+  { collection: "batch_step_execution", field: "create_time", days: BATCH_RETENTION_DAYS },
+  { collection: SHEDLOCK_COLLECTION, field: SHEDLOCK_LOCK_UNTIL_FIELD, days: LOCK_RETENTION_DAYS }
 ];
 
-print("[ttl] banco=" + db.getName() + " retencao=" + RETENTION_DAYS + " dia(s) (" + RETENTION_SECONDS + "s)");
+print("[ttl] banco=" + db.getName() + " retencao batch_*=" + BATCH_RETENTION_DAYS + " dia(s) lock="
+  + LOCK_RETENTION_DAYS + " dia(s)");
 
 const backfill = db.batch_job_instance.updateMany(
   { create_time: { $exists: false } },
@@ -21,6 +28,7 @@ const backfill = db.batch_job_instance.updateMany(
 print("[ttl] backfill de create_time em batch_job_instance: " + backfill.modifiedCount + " documento(s)");
 
 TTL_SPECS.forEach(function (spec) {
+  const seconds = spec.days * 86400;
   const name = spec.field + "_ttl";
   const coll = db.getCollection(spec.collection);
   const keys = {};
@@ -40,13 +48,13 @@ TTL_SPECS.forEach(function (spec) {
   })[0];
 
   if (!existing) {
-    coll.createIndex(keys, { name: name, expireAfterSeconds: RETENTION_SECONDS });
-    print("[ttl]   criado   " + spec.collection + "." + name + " (" + RETENTION_SECONDS + "s)");
-  } else if (existing.expireAfterSeconds !== RETENTION_SECONDS) {
-    db.runCommand({ collMod: spec.collection, index: { name: name, expireAfterSeconds: RETENTION_SECONDS } });
-    print("[ttl]   ajustado " + spec.collection + "." + name + " -> " + RETENTION_SECONDS + "s");
+    coll.createIndex(keys, { name: name, expireAfterSeconds: seconds });
+    print("[ttl]   criado   " + spec.collection + "." + name + " (" + seconds + "s)");
+  } else if (existing.expireAfterSeconds !== seconds) {
+    db.runCommand({ collMod: spec.collection, index: { name: name, expireAfterSeconds: seconds } });
+    print("[ttl]   ajustado " + spec.collection + "." + name + " -> " + seconds + "s");
   } else {
-    print("[ttl]   ok       " + spec.collection + "." + name + " (" + RETENTION_SECONDS + "s)");
+    print("[ttl]   ok       " + spec.collection + "." + name + " (" + seconds + "s)");
   }
 });
 

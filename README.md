@@ -97,6 +97,8 @@ removido da `gerenciamento_arquivo_recebido`. Ver
 | `app.blob.connect-timeout-seconds` | `APP_BLOB_CONNECT_TIMEOUT_SECONDS` | `10` | Teto para estabelecer a conexão |
 | `app.kafka.topic` | `APP_KAFKA_TOPIC` | `movimentos-particionados` | Tópico de saída |
 | — | `OTEL_ENABLED` | `true` | Liga o agente do OpenTelemetry (gera `trace_id`/`span_id` nos logs) |
+| — | `BATCH_RETENTION_DAYS` | `7` | TTL das collections `batch_*` (aplicado pelo `mongo-init`) |
+| — | `LOCK_RETENTION_DAYS` | `7` | TTL dos documentos de lock, contado a partir de `bloqueado_ate` (aplicado pelo `mongo-init`) |
 
 O MongoDB roda com `transactionLifetimeLimitSeconds=60`, igual a produção. Nenhum I/O de blob ou
 Kafka acontece dentro de transação do Mongo (ver [ARCHITECTURE.md](docs/ARCHITECTURE.md#transações-do-mongodb)).

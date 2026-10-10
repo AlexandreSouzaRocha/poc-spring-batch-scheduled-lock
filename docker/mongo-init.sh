@@ -4,8 +4,10 @@ set -euo pipefail
 DB="${MONGO_DATABASE:-partitioner_batch}"
 HOST="${MONGO_HOST:-mongo:27017}"
 RETENTION_DAYS="${BATCH_RETENTION_DAYS:-7}"
+LOCK_RETENTION_DAYS="${LOCK_RETENTION_DAYS:-7}"
 SHEDLOCK_COLLECTION="${APP_SHEDLOCK_COLLECTION:-bloqueio_agendamento}"
 SHEDLOCK_NAME_FIELD="${APP_SHEDLOCK_FIELD_NAME:-_id}"
+SHEDLOCK_LOCK_UNTIL_FIELD="${APP_SHEDLOCK_FIELD_LOCK_UNTIL:-bloqueado_ate}"
 INIT_DIR="$(dirname "$0")"
 
 echo "[mongo-init] aguardando mongod em ${HOST}..."
@@ -34,8 +36,9 @@ MONGO_URI="mongodb://${HOST}/${DB}?directConnection=true"
 SHEDLOCK_COLLECTION="${SHEDLOCK_COLLECTION}" SHEDLOCK_NAME_FIELD="${SHEDLOCK_NAME_FIELD}" \
   mongosh "${MONGO_URI}" --quiet --file "${INIT_DIR}/mongo-collections.js"
 
-echo "[mongo-init] expurgo automático: TTL de ${RETENTION_DAYS} dia(s) nas coleções batch_*..."
-BATCH_RETENTION_DAYS="${RETENTION_DAYS}" \
+echo "[mongo-init] expurgo automático: TTL de ${RETENTION_DAYS} dia(s) nas coleções batch_* e de ${LOCK_RETENTION_DAYS} dia(s) em ${SHEDLOCK_COLLECTION}..."
+BATCH_RETENTION_DAYS="${RETENTION_DAYS}" LOCK_RETENTION_DAYS="${LOCK_RETENTION_DAYS}" \
+SHEDLOCK_COLLECTION="${SHEDLOCK_COLLECTION}" SHEDLOCK_LOCK_UNTIL_FIELD="${SHEDLOCK_LOCK_UNTIL_FIELD}" \
   mongosh "${MONGO_URI}" --quiet --file "${INIT_DIR}/mongo-ttl-indexes.js"
 
 echo "[mongo-init] concluído."

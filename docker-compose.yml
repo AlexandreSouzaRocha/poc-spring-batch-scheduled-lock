@@ -115,8 +115,10 @@ services:
     environment:
       MONGO_DATABASE: partitioner_batch
       BATCH_RETENTION_DAYS: ${BATCH_RETENTION_DAYS:-7}
+      LOCK_RETENTION_DAYS: ${LOCK_RETENTION_DAYS:-7}
       APP_SHEDLOCK_COLLECTION: ${APP_SHEDLOCK_COLLECTION:-bloqueio_agendamento}
       APP_SHEDLOCK_FIELD_NAME: ${APP_SHEDLOCK_FIELD_NAME:-_id}
+      APP_SHEDLOCK_FIELD_LOCK_UNTIL: ${APP_SHEDLOCK_FIELD_LOCK_UNTIL:-bloqueado_ate}
     volumes:
       - ./docker:/init:ro
     entrypoint: ["bash", "/init/mongo-init.sh"]
