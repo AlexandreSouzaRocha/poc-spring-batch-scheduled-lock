@@ -136,7 +136,7 @@ slow_io() {
 
 invalid_file_with() {
   local defect=$1 description=$2
-  info "CENÁRIO invalid-file ($defect): $description -> FALHA imediata, sem retentativa, arquivo mantido em entrada/"
+  info "CENÁRIO invalid-file ($defect): $description -> FALHA imediata, sem retentativa, arquivo mantido em $INBOX_FOLDER/"
   setup
   local kafka_before name id status
   kafka_before=$(kafka_count)
@@ -145,7 +145,7 @@ invalid_file_with() {
   status=$(wait_file_status "$id" "CONCLUIDO FALHA" 300)
   check "status FALHA ($status)" "$([ "$status" = "FALHA" ] && echo true || echo false)"
   check "sem retentativas (1 tentativa)" "$(file_field "$id" "str(d['attempts'] == 1).lower()")"
-  check "arquivo mantido em entrada/" "$(verification_field "$id" "d['currentPath'].startswith('entrada/') and d['currentPathExists']")"
+  check "arquivo mantido em $INBOX_FOLDER/" "$(verification_field "$id" "d['currentPath'].startswith('$INBOX_FOLDER/') and d['currentPathExists']")"
   check "nenhuma partição registrada" "$(verification_field "$id" "d['partitionDocuments'] == 0")"
   check "nenhuma mensagem no Kafka" "$([ "$(kafka_count)" -eq "$kafka_before" ] && echo true || echo false)"
 }

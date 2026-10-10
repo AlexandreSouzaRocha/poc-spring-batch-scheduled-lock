@@ -4,6 +4,8 @@ GENERATOR_URL=${GENERATOR_URL:-http://localhost:8090}
 P1_URL=${P1_URL:-http://localhost:8081}
 P2_URL=${P2_URL:-http://localhost:8082}
 TOPIC=${TOPIC:-movimentos-particionados}
+INBOX_FOLDER=$(echo "${FOLDER_INBOX:-entrada}" | sed -E 's#^/+##; s#/+$##')
+PROCESSED_FOLDER=$(echo "${FOLDER_PROCESSED:-processados}" | sed -E 's#^/+##; s#/+$##')
 PARTITIONER_INSTANCES=${PARTITIONER_INSTANCES:-2}
 PARTITIONERS=(partitioner-1)
 if [ "$PARTITIONER_INSTANCES" -gt 1 ]; then

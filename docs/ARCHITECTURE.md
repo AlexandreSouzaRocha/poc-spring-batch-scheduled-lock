@@ -632,6 +632,11 @@ processados/<data>/<fileId>/<arquivo>.txt               original já particionad
 aberto|fechado|saldo|ultima/<data>/<fileId>/<arquivo>_part_0001.txt
 ```
 
+`entrada/` e `processados/` são os valores padrão de `APP_FOLDER_INBOX` e `APP_FOLDER_PROCESSED`
+(`app.folders.*`), que aceitam caminhos aninhados; barras no começo e no fim são ignoradas. No
+docker-compose, `FOLDER_INBOX` e `FOLDER_PROCESSED` trocam as duas pastas para o gerador, os
+particionadores e os scripts.
+
 O `fileId` no caminho das partições permite apagar todas as partições de um arquivo só
 pelo prefixo, inclusive as que foram enviadas mas não chegaram a ser registradas no Mongo.
 

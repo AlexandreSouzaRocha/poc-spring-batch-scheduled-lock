@@ -89,6 +89,27 @@ public record AppProperties(
     public record FolderSettings(
             @NotBlank String inbox,
             @NotBlank String processed) {
+
+        private static final String SEPARATOR = "/";
+
+        public FolderSettings {
+            inbox = withoutEdgeSeparators(inbox);
+            processed = withoutEdgeSeparators(processed);
+        }
+
+        private static String withoutEdgeSeparators(String folder) {
+            if (folder == null) {
+                return null;
+            }
+            String trimmed = folder.strip();
+            while (trimmed.startsWith(SEPARATOR)) {
+                trimmed = trimmed.substring(SEPARATOR.length());
+            }
+            while (trimmed.endsWith(SEPARATOR)) {
+                trimmed = trimmed.substring(0, trimmed.length() - SEPARATOR.length());
+            }
+            return trimmed;
+        }
     }
 
     public record PartitionSettings(

@@ -26,6 +26,16 @@ class BlobPathsTest {
         assertThat(BlobPaths.fileNameOf("a/b/c.txt")).isEqualTo("c.txt");
     }
 
+    @Test
+    void acceptsNestedFoldersWithLeadingAndTrailingSeparators() {
+        BlobPaths nested = new BlobPaths(new FolderSettings(" /mainframe/movimentos/entrada/ ", "mainframe/processados//"));
+
+        assertThat(nested.inboxPrefix()).isEqualTo("mainframe/movimentos/entrada/");
+        assertThat(nested.inboxPath("MOV.txt")).isEqualTo("mainframe/movimentos/entrada/MOV.txt");
+        assertThat(nested.processedPath(inspectedOriginal()))
+                .isEqualTo("mainframe/processados/2026-09-16/file-1/MOV.txt");
+    }
+
     private static ReceivedFileDocument inspectedOriginal() {
         MovementInfo movement = new MovementInfo("H2026-09-16ULTIMA ", MovementType.ULTIMA, "2026-09-16");
         ReceivedFileDocument received = ReceivedFileDocument.original("MOV.txt",

@@ -16,7 +16,7 @@ wait_idle
 START=$(now_utc)
 KAFKA_BEFORE=$(kafka_count)
 
-info "gerando $FILES arquivo(s) de $LINES linhas ($TYPE) e publicando em entrada/"
+info "gerando $FILES arquivo(s) de $LINES linhas ($TYPE) e publicando em $INBOX_FOLDER/"
 GENERATED=$(generate "$LINES" "$FILES" "$TYPE")
 echo "$GENERATED" | python3 -m json.tool
 NAMES=$(echo "$GENERATED" | file_names_of)
@@ -38,7 +38,7 @@ for NAME in $NAMES; do
   check "soma das linhas das partições = $LINES" "$(verification_field "$ID" "d['partitionLines'] == $LINES")"
   check "todas as partições com tamanho, header, trailer e publicação corretos" "$(verification_field "$ID" "d['allPartitionsValid']")"
   check "partições na pasta $FOLDER/" "$(verification_field "$ID" "all(p['path'].startswith('$FOLDER/') for p in d['partitions'])")"
-  check "original movido para processados/ e removido de entrada/" "$(verification_field "$ID" "d['currentPath'].startswith('processados/') and d['currentPathExists'] and not d['sourcePathExists']")"
+  check "original movido para $PROCESSED_FOLDER/ e removido de $INBOX_FOLDER/" "$(verification_field "$ID" "d['currentPath'].startswith('$PROCESSED_FOLDER/') and d['currentPathExists'] and not d['sourcePathExists']")"
   check "processado na primeira tentativa" "$(file_field "$ID" "str(d['attempts'] == 1).lower()")"
   check "arquivão removido da gerenciamento_arquivo_recebido" "$(file_field "$ID" "str(d['originalRemoved']).lower()")"
 

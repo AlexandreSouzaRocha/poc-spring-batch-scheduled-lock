@@ -71,6 +71,8 @@ removido da `gerenciamento_arquivo_recebido`. Ver
 
 | Propriedade | Env | Padrão | Descrição |
 |---|---|---|---|
+| `app.folders.inbox` | `APP_FOLDER_INBOX` | `entrada` | Pasta do blob lida pelo polling; aceita caminho aninhado (`mainframe/movimentos/entrada`). Barras no começo e no fim são ignoradas |
+| `app.folders.processed` | `APP_FOLDER_PROCESSED` | `processados` | Pasta do blob para onde o arquivão vai depois de particionado; mesmas regras |
 | `app.file.line-separator` | `APP_FILE_LINE_SEPARATOR` | `LF` | Quebra de linha do arquivo (`LF` ou `CRLF`) |
 | `app.file.header-length` | `APP_FILE_HEADER_LENGTH` | `18` | Bytes do header sem a quebra (mínimo 18) |
 | `app.file.detail-length` | `APP_FILE_DETAIL_LENGTH` | `150` | Bytes de cada linha de detalhe sem a quebra |
